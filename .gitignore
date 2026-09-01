@@ -1,0 +1,11 @@
+node_modules/
+out/
+dist/
+*.log
+*.local
+.DS_Store
+.mimosa/
+.zcodeignore
+
+# archify 本地产物（架构图 HTML 与评审记录），不入库
+.archify/
