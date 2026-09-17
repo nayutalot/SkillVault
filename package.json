@@ -1,0 +1,43 @@
+{
+  "name": "skillvault",
+  "version": "1.0.0",
+  "description": "Manage a cross Windows/WSL Skill Vault central repository (zero cloud remote)",
+  "productName": "SkillVault",
+  "main": "./out/main/index.js",
+  "author": "sakuya",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
+    "build": "electron-vite build && pnpm typecheck",
+    "build:companion": "esbuild src/companion/skm.ts --bundle --platform=node --format=esm --target=node18 --outfile=out/skm.mjs",
+    "test": "vitest run",
+    "dist": "electron-vite build && electron-builder --win",
+    "dist:portable": "electron-vite build && electron-builder --win portable",
+    "migrate": "tsx scripts/migrate.ts"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "esbuild": "^0.24.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  }
+}
