@@ -24,6 +24,27 @@ const TEXT_EXTS = new Set([
 
 export type FixOutcome = { message: string }
 
+/** 字节级 CRLF→LF：绝不 decode/re-encode —— GBK/ANSI（中文 Windows 记事本默认编码）或 UTF-16LE 等非 UTF-8
+ *  文本文件若按 UTF-8 强解码再写回，非法字节会被替换成 U+FFFD，文件永久乱码且换机器必现。
+ *  故这里逐字节扫描，仅当 \r 后紧跟 \n 时删掉 \r；孤立 \r（旧 Mac 行尾）原样保留。
+ *  返回转换后的 Buffer；不含 CRLF 时返回 null（调用方跳过写盘，避免无意义重写）。 */
+export function crlfToLfBuffer(buf: Buffer): Buffer | null {
+  // 先数一遍 CRLF 对数定输出长度：文件可达数 MB，预分配一次遍历直写，避免逐字节 push 数组
+  let crlfCount = 0
+  for (let i = 0; i < buf.length - 1; i++) {
+    if (buf[i] === 0x0d && buf[i + 1] === 0x0a) crlfCount++
+  }
+  if (crlfCount === 0) return null
+  const out = Buffer.allocUnsafe(buf.length - crlfCount)
+  let w = 0
+  for (let i = 0; i < buf.length; i++) {
+    // 仅丢弃紧跟 \n 的 \r；末尾孤立 \r 原样保留
+    if (buf[i] === 0x0d && i + 1 < buf.length && buf[i + 1] === 0x0a) continue
+    out[w++] = buf[i]
+  }
+  return out
+}
+
 function findCrlfFiles(vaultPath: string, limit = 200): string[] {
   const root = path.join(vaultPath, 'skills')
   const found: string[] = []
@@ -262,7 +283,10 @@ export async function applyFix(settings: AppSettings, registry: Registry, item: 
         if (!full) continue
         try {
           const buf = fs.readFileSync(full)
-          fs.writeFileSync(full, buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')
+          if (buf.includes(0)) continue // 含 NUL：UTF-16 / 二进制文件，不解码不重写，绝不碰
+          const lf = crlfToLfBuffer(buf)
+          if (!lf) continue // 扫描与修复之间文件可能已变化，无 CRLF 就不写盘
+          fs.writeFileSync(full, lf) // Buffer 直写，无 encoding 参数：GBK 等非 UTF-8 字节逐字节保真，不会转码成乱码
           converted++
         } catch {
           /* 单文件失败跳过，不中断整体转换 */

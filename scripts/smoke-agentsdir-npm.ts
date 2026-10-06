@@ -7,20 +7,20 @@ import path from 'node:path'
 import { resolveNpmCmdPath } from '../src/main/versionCenter/npm'
 import { agentsDirStateOf, vaultAgentsDir } from '../src/main/winLinks'
 import { loadSettings } from '../src/main/settings'
-import { parseRegistry, DEFAULT_REGISTRY } from '../src/shared/registry'
+import { parseRegistry, defaultRegistry } from '../src/shared/registry'
 
 async function main(): Promise<void> {
   console.log('=== agentsDir 状态（只读） ===')
   const s = loadSettings(null)
   const vaultPath = s.vaultPath
   console.log('vaultPath:', vaultPath, 'exists:', fs.existsSync(vaultPath))
-  let registry = DEFAULT_REGISTRY
+  let registry = defaultRegistry()
   try {
     const raw = JSON.parse(fs.readFileSync(path.join(vaultPath, 'registry.json'), 'utf8'))
     const parsed = parseRegistry(JSON.stringify(raw))
     if (parsed.ok) registry = parsed.registry
   } catch {
-    console.log('registry.json 不可读，使用 DEFAULT_REGISTRY')
+    console.log('registry.json 不可读，使用 defaultRegistry()')
   }
   const vaultFiles = fs.existsSync(vaultAgentsDir(vaultPath)) ? fs.readdirSync(vaultAgentsDir(vaultPath)) : []
   console.log('vault agents/:', JSON.stringify(vaultFiles))

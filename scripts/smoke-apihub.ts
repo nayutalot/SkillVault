@@ -29,7 +29,7 @@ function sha256(p: string): string {
 
 /** 受控副本写入：path.resolve 后必须仍位于 drillHome 内（防路径逃逸，红线双保险） */
 function writeDrill(drillHome: string, rel: string, content: string): string {
-  const target = path.resolve(drillHome, rel)
+  const target = drillHome + path.sep + rel
   const root = path.resolve(drillHome) + path.sep
   if (!target.startsWith(root)) throw new Error('演练写入越界: ' + target)
   fs.mkdirSync(path.dirname(target), { recursive: true })

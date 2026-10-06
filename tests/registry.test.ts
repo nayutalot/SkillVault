@@ -1,9 +1,11 @@
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { agentIncludes, DEFAULT_REGISTRY, parseRegistry, REGISTRY_VERSION } from '../src/shared/registry'
+import { agentIncludes, defaultRegistry, parseRegistry, REGISTRY_VERSION } from '../src/shared/registry'
 
 describe('parseRegistry', () => {
   it('解析默认 registry（v2，zcode 双端带 agentsDir）', () => {
-    const r = parseRegistry(JSON.stringify(DEFAULT_REGISTRY))
+    const r = parseRegistry(JSON.stringify(defaultRegistry()))
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.registry.version).toBe(REGISTRY_VERSION)
@@ -14,7 +16,9 @@ describe('parseRegistry', () => {
       expect(wsl?.skillsDir).toBe('/root/.zcode/skills')
       expect(wsl?.agentsDir).toBe('/root/.zcode/agents')
       const win = r.registry.agents.find((a) => a.name === 'zcode-win')
-      expect(win?.agentsDir).toBe('C:\\Users\\sakuya\\.zcode\\agents')
+      // Windows 侧目录按当前用户主目录派生，不硬编码机器专属用户名
+      expect(win?.skillsDir).toBe(path.join(os.homedir(), '.zcode', 'skills'))
+      expect(win?.agentsDir).toBe(path.join(os.homedir(), '.zcode', 'agents'))
       // 未配置 agentsDir 的 agent 保持 undefined（字段缺省，不写 null）
       expect(r.registry.agents.find((a) => a.name === 'codex-win')?.agentsDir).toBeUndefined()
     }
@@ -86,7 +90,7 @@ describe('parseRegistry', () => {
 })
 
 describe('agentIncludes', () => {
-  const star = DEFAULT_REGISTRY.agents[0]
+  const star = defaultRegistry().agents[0]
   const listed = { name: 'x', platform: 'linux' as const, skillsDir: '/x', include: ['foo', 'bar'] }
 
   it('["*"] 包含所有 skill', () => {

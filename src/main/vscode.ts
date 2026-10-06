@@ -57,7 +57,15 @@ export function resolveVsCode(): string | null {
     },
     where: (name) => {
       try {
-        const r = spawnSync('where.exe', [name], { encoding: 'utf8', windowsHide: true })
+        // where.exe 的重定向输出用 OEM 代码页（中文系统是 GBK/936），直接按 UTF-8 解会把中文安装路径
+        // 解成乱码 → 下一步 fs.existsSync 必失败 → VS Code 解析永远落空。与 versionCenter/exec.ts 的
+        // execCmdArgs 同款通道：让 cmd 会话先 chcp 65001 切到 UTF-8 再执行 where，输出即可按 UTF-8 正确解码。
+        // name 只来自 resolveVsCodeFrom 内部固定白名单 'code.cmd' / 'code'，不拼用户输入，无命令注入面。
+        const r = spawnSync(
+          'cmd.exe',
+          ['/d', '/s', '/c', 'chcp', '65001', '>nul', '&&', 'where.exe', name],
+          { encoding: 'utf8', windowsHide: true }
+        )
         if (r.status !== 0 || !r.stdout) return null
         return r.stdout.split(/\r?\n/).filter((l) => l.trim())
       } catch {

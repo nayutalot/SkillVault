@@ -4,6 +4,7 @@ import path from 'node:path'
 import type { AgentScan, AgentsRepairResult, LinkState, Registry, RegistryAgent, SkillMeta } from '../shared/types'
 import { agentIncludes } from '../shared/registry'
 import { parseFrontmatter } from '../shared/frontmatter'
+import { decodeTextBuffer } from '../shared/textDecode'
 
 /** 去掉 \\?\ / \??\ 前缀，统一反斜杠（保留大小写，用于真实路径解析） */
 export function stripWinPrefix(p: string): string {
@@ -301,10 +302,14 @@ export function listVaultAgentFiles(vaultPath: string): string[] {
     .sort((a, b) => a.localeCompare(b))
 }
 
-/** 读取 skill 目录下 SKILL.md 的 frontmatter description（缺失/解析失败为空串） */
+/** 读取 skill 目录下 SKILL.md 的 frontmatter description（缺失/解析失败/不可解码均为空串） */
 export function readSkillDescription(skillDir: string): string {
   try {
-    return parseFrontmatter(fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8')).description ?? ''
+    // 另一台中文 Windows 上 SKILL.md 可能是 GBK（记事本 ANSI）或 UTF-16LE（PowerShell ISE），
+    // 按 UTF-8 强解会在仪表盘显示乱码；decodeTextBuffer 按 BOM → 严格 UTF-8 → GBK 兜底。
+    // 铁律：解码结果只用于展示（description），绝不写回磁盘——写回等于静默转码，二进制误判会把文件写坏。
+    const decoded = decodeTextBuffer(fs.readFileSync(path.join(skillDir, 'SKILL.md')))
+    return decoded ? parseFrontmatter(decoded.text).description ?? '' : ''
   } catch {
     return ''
   }

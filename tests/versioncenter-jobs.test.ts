@@ -157,15 +157,19 @@ function checkDispatch(state: {
 const tmpFiles: string[] = []
 
 function newCacheFile(): string {
-  const f = path.join(os.tmpdir(), `vc-cache-${Date.now()}-${Math.random().toString(36).slice(2)}.json`)
-  tmpFiles.push(f)
+  // 门禁安全（路径穿越防护）：目录由 mkdtemp 生成、文件名是本函数内的固定字面量（无外部输入），
+  // resolve 后仍强制校验包含在临时目录内（以 path.sep 结尾前缀比较）才返回
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-cache-'))
+  const f = path.resolve(dir, 'cache.json')
+  if (!f.startsWith(dir + path.sep)) throw new Error(`缓存路径越界: ${f}`)
+  tmpFiles.push(dir)
   return f
 }
 
 afterEach(() => {
-  for (const f of tmpFiles.splice(0)) {
+  for (const d of tmpFiles.splice(0)) {
     try {
-      fs.rmSync(f, { force: true })
+      fs.rmSync(d, { recursive: true, force: true })
     } catch {
       /* 清理失败忽略 */
     }

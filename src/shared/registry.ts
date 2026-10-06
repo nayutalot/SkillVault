@@ -1,30 +1,39 @@
-// registry.json 的纯逻辑（无 IO），主进程与 companion 共用（companion 由 esbuild 打包内联）
+// registry.json 的纯逻辑（无 IO），主进程与 companion 共用（companion 由 esbuild 打包内联）；默认注册表按 os.homedir 派生（环境相关，无盘 IO）
 // v2：agents 每项新增可选 agentsDir（子智能体共享目录）；v1 文件可读（agentsDir 缺省 undefined），
 // 解析结果统一归一化为 version: 2。
+import os from 'node:os'
+import path from 'node:path'
 import type { Registry, RegistryAgent } from './types'
 
 export const REGISTRY_VERSION = 2
 
-export const DEFAULT_REGISTRY: Registry = {
-  version: REGISTRY_VERSION,
-  agents: [
-    {
-      name: 'zcode-win',
-      platform: 'windows',
-      skillsDir: 'C:\\Users\\sakuya\\.zcode\\skills',
-      agentsDir: 'C:\\Users\\sakuya\\.zcode\\agents',
-      include: ['*']
-    },
-    { name: 'codex-win', platform: 'windows', skillsDir: 'C:\\Users\\sakuya\\.codex\\skills', include: ['*'] },
-    { name: 'agents-win', platform: 'windows', skillsDir: 'C:\\Users\\sakuya\\.agents\\skills', include: ['*'] },
-    {
-      name: 'zcode-wsl',
-      platform: 'linux',
-      skillsDir: '/root/.zcode/skills',
-      agentsDir: '/root/.zcode/agents',
-      include: ['*']
-    }
-  ]
+/**
+ * 默认注册表。Windows 侧目录按当前用户主目录派生（os.homedir），绝不硬编码机器专属用户名——
+ * 硬编码换电脑/换用户名安装即失效（skillsDir/agentsDir 全部指向不存在的路径）。linux 侧 /root 固定不变。
+ */
+export function defaultRegistry(): Registry {
+  const home = os.homedir()
+  return {
+    version: REGISTRY_VERSION,
+    agents: [
+      {
+        name: 'zcode-win',
+        platform: 'windows',
+        skillsDir: path.join(home, '.zcode', 'skills'),
+        agentsDir: path.join(home, '.zcode', 'agents'),
+        include: ['*']
+      },
+      { name: 'codex-win', platform: 'windows', skillsDir: path.join(home, '.codex', 'skills'), include: ['*'] },
+      { name: 'agents-win', platform: 'windows', skillsDir: path.join(home, '.agents', 'skills'), include: ['*'] },
+      {
+        name: 'zcode-wsl',
+        platform: 'linux',
+        skillsDir: '/root/.zcode/skills',
+        agentsDir: '/root/.zcode/agents',
+        include: ['*']
+      }
+    ]
+  }
 }
 
 function isPlatform(v: unknown): v is 'windows' | 'linux' {

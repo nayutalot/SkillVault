@@ -299,7 +299,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
 
       {report && !report.vaultOk && (
         <div className="banner err">
-          vault 不可用（默认 C:\Users\sakuya\SkillVault 不存在或不是 git 仓库）。请先完成迁移，或到设置页检查路径。
+          vault 不可用（默认路径（用户目录下 SkillVault）不存在或不是 git 仓库）。请先完成迁移，或到设置页检查路径。
         </div>
       )}
       {wslPhase === 'pending' && (

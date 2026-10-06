@@ -75,7 +75,7 @@ describe('nativeInstalledVersion / nativeUpdateHandle', () => {
   /** 造一个真实存在的假 exe（fs 探测需要）；返回绝对路径 */
   function makeFakeBin(name: string): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-native-run-'))
-    const exe = path.join(dir, name)
+    const exe = dir + path.sep + name
     fs.writeFileSync(exe, 'binary')
     tmpFiles.push(exe)
     return exe

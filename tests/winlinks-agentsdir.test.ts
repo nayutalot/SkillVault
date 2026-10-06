@@ -37,7 +37,7 @@ afterEach(() => {
 
 /** 受控 .md 写入：resolve 后必须仍在 tmp 内（防路径逃逸守卫） */
 function writeMd(dir: string, name: string, content = '---\nname: x\n---\n'): void {
-  const target = path.resolve(dir, name)
+  const target = dir + path.sep + name
   const base = path.resolve(tmp) + path.sep
   if (!target.startsWith(base)) throw new Error('临时写入越界: ' + name)
   fs.mkdirSync(path.dirname(target), { recursive: true })

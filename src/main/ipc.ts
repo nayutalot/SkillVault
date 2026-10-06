@@ -33,9 +33,10 @@ import { executeImport, planImport } from './importer'
 import { runWslScan } from './wslScan'
 import { syncAll } from './sync'
 import { applyFix, runDoctor } from './doctor'
-import { parseRegistry, DEFAULT_REGISTRY, REGISTRY_VERSION } from '../shared/registry'
+import { parseRegistry, defaultRegistry, REGISTRY_VERSION } from '../shared/registry'
 import { git } from './git'
 import { WSL_VAULT, wslUncSkillDir } from '../shared/paths'
+import { decodeTextBuffer } from '../shared/textDecode'
 import {
   isKnownCopyPath,
   isKnownSkillName,
@@ -298,11 +299,11 @@ export function registerIpc(): void {
       const { registry, file, corrupt } = readRegistry(s.vaultPath)
       if (!fs.existsSync(file)) {
         // vault 尚未初始化时返回默认 registry，保存时会写入 vault
-        return { registry: structuredClone(DEFAULT_REGISTRY), file, missing: true }
+        return { registry: structuredClone(defaultRegistry()), file, missing: true }
       }
       // 损坏：返回默认值仅供只读展示 + corrupt 原因；registry:save 会拒绝覆盖
       if (corrupt) {
-        return { registry: structuredClone(DEFAULT_REGISTRY), file, missing: false, corrupt }
+        return { registry: structuredClone(defaultRegistry()), file, missing: false, corrupt }
       }
       return { registry, file, missing: false }
     })
@@ -432,7 +433,12 @@ export function registerIpc(): void {
       assertOpenableAgentMd(s.vaultPath, arg.fileName)
       const md = resolveVaultAgentMd(s.vaultPath, arg.fileName)
       if (!fs.existsSync(md)) throw new Error(`文件不存在: ${arg.fileName}`)
-      const lines = fs.readFileSync(md, 'utf8').split(/\r?\n/)
+      // GBK/UTF-16 文件按 UTF-8 强解会在预览里乱码：先读 Buffer，再走共享解码兜底（BOM → 严格 UTF-8 → GBK）。
+      // decodeTextBuffer 只用于展示（预览），绝不写回磁盘——写回等于静默转码，二进制误判时会把文件写坏。
+      const buf = fs.readFileSync(md)
+      const decoded = decodeTextBuffer(buf)
+      if (!decoded) throw new Error(`文件不是可读文本（二进制或未知编码）: ${md}`)
+      const lines = decoded.text.split(/\r?\n/)
       return { path: md, preview: lines.slice(0, 40).join('\n'), truncated: lines.length > 40 }
     })
   )

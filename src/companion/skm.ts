@@ -5,6 +5,8 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { agentIncludes, parseRegistry } from '../shared/registry'
 import { parseFrontmatter } from '../shared/frontmatter'
+// decodeTextBuffer 只用于展示（description 随 JSON 回传），绝不写回磁盘——写回等于静默转码。
+import { decodeTextBuffer } from '../shared/textDecode'
 import type { AgentScan, LinkState, Registry, RegistryAgent, SkillMeta, SyncStep } from '../shared/types'
 
 const VAULT = process.env.SKM_VAULT || '/root/skill-vault'
@@ -22,7 +24,8 @@ function fail(error: string): never {
 
 function gitRun(args: string[]): { ok: boolean; stdout: string; stderr: string } {
   // GIT_TERMINAL_PROMPT=0：origin 需要认证时立即失败而不是挂住等输入（Windows 侧超时前 companion 会一直卡着）
-  const r = spawnSync('git', args, {
+  // 两个 -c 与 src/main/git.ts 的 GIT_TEXT_ARGS 同款：core.quotepath=false 防中文文件名变 \346 八进制转义
+  const r = spawnSync('git', ['-c', 'core.quotepath=false', '-c', 'i18n.logOutputEncoding=UTF-8', ...args], {
     cwd: VAULT,
     encoding: 'utf8',
     timeout: 120000,
@@ -57,8 +60,9 @@ function listSkills(): SkillMeta[] {
       let description = ''
       if (hasSkillMd) {
         try {
-          description = parseFrontmatter(fs.readFileSync(path.join(SKILLS_DIR, e.name, 'SKILL.md'), 'utf8'))
-            .description ?? ''
+          // 按 BOM→UTF-8→GBK 探测解码：SKILL.md 可能是 GBK/UTF-16 编码，按 utf8 强解码会乱码
+          const decoded = decodeTextBuffer(fs.readFileSync(path.join(SKILLS_DIR, e.name, 'SKILL.md')))
+          description = (decoded ? parseFrontmatter(decoded.text).description : '') ?? ''
         } catch {
           description = ''
         }

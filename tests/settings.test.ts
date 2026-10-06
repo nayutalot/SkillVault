@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../src/main/settings'
+import { defaultSettings, loadSettings, saveSettings } from '../src/main/settings'
 
 let dir = ''
 
@@ -16,11 +16,17 @@ afterEach(() => {
 })
 
 describe('loadSettings 默认值隔离', () => {
-  it('无配置文件时 remoteTargets 是新数组：原地 push 不污染模块级默认值（旧 bug：浅拷贝共享引用）', () => {
+  it('默认路径按当前用户主目录派生（os.homedir），不硬编码机器专属用户名', () => {
+    const d = defaultSettings()
+    expect(d.vaultPath).toBe(path.join(os.homedir(), 'SkillVault'))
+    expect(d.barePath).toBe(path.join(os.homedir(), 'SkillVault.git'))
+  })
+
+  it('无配置文件时 remoteTargets 是新数组：原地 push 不污染默认值（旧 bug：浅拷贝共享引用）', () => {
     const a = loadSettings(dir)
     const b = loadSettings(dir)
     expect(a.remoteTargets).not.toBe(b.remoteTargets)
-    expect(a.remoteTargets).not.toBe(DEFAULT_SETTINGS.remoteTargets)
+    expect(a.remoteTargets).not.toBe(defaultSettings().remoteTargets)
     a.remoteTargets.push({
       id: 't1',
       kind: 'ssh',
@@ -30,7 +36,7 @@ describe('loadSettings 默认值隔离', () => {
       port: 22
     })
     expect(loadSettings(dir).remoteTargets).toHaveLength(0)
-    expect(DEFAULT_SETTINGS.remoteTargets).toHaveLength(0)
+    expect(defaultSettings().remoteTargets).toHaveLength(0)
   })
 
   it('configDir=null（无头脚本）同样返回独立数组', () => {

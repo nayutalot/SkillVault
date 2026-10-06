@@ -59,8 +59,8 @@ export default function SyncPage({ notify }: { notify: Notify }): React.JSX.Elem
       <div className="card">
         <h3>同步机制（零云远端）</h3>
         <p className="hint">
-          数据面只有本地裸仓 <code>C:\Users\sakuya\SkillVault.git</code> 作为唯一 origin：Windows 工作克隆
-          <code>C:\Users\sakuya\SkillVault</code> 与 WSL 工作克隆 <code>/root/skill-vault</code> 互为对端，全部 push/pull
+          数据面只有本地裸仓 <code>用户目录下 SkillVault.git</code> 作为唯一 origin：Windows 工作克隆
+          <code>用户目录下 SkillVault</code> 与 WSL 工作克隆 <code>/root/skill-vault</code> 互为对端，全部 push/pull
           都指向本地裸仓，不涉及任何云仓库。
         </p>
         <ol className="hint">

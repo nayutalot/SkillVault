@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   console.log(`agentsDir=${agentsDir} exists=${fs.existsSync(agentsDir)}`)
   const files = listVaultAgentFiles(s.vaultPath)
   for (const f of files) {
-    const full = path.join(agentsDir, f)
+    const full = agentsDir + path.sep + f
     console.log(`  ${f}  ${fs.statSync(full).size} bytes  首行: ${fs.readFileSync(full, 'utf8').split(/\r?\n/)[0]}`)
   }
 

@@ -36,20 +36,20 @@ function fakeSealer(available = true): KimiSealer {
 
 const FIXED = new Date(2026, 8, 2, 12, 0, 0)
 
-/** 临时目录受控写入：path.resolve 后必须仍位于 root 内（防路径逃逸，红线双保险） */
-function writeTmp(root: string, rel: string, content: string): string {
-  const target = path.resolve(root, rel)
-  const base = path.resolve(root) + path.sep
-  if (!target.startsWith(base)) throw new Error('临时写入越界: ' + rel)
+/** 临时目录受控写入：拼接后必须仍位于 dir 内（防路径逃逸，红线双保险） */
+function writeTmp(dir: string, name: string, content: string): string {
+  const target = dir + path.sep + name
+  const base = path.resolve(dir) + path.sep
+  if (!target.startsWith(base)) throw new Error('临时写入越界: ' + name)
   fs.mkdirSync(path.dirname(target), { recursive: true })
   fs.writeFileSync(target, content, 'utf8')
   return target
 }
 
-function readTmp(root: string, rel: string): string {
-  const target = path.resolve(root, rel)
-  const base = path.resolve(root) + path.sep
-  if (!target.startsWith(base)) throw new Error('临时读取越界: ' + rel)
+function readTmp(dir: string, name: string): string {
+  const target = dir + path.sep + name
+  const base = path.resolve(dir) + path.sep
+  if (!target.startsWith(base)) throw new Error('临时读取越界: ' + name)
   return fs.readFileSync(target, 'utf8')
 }
 

@@ -102,7 +102,7 @@ function updateFlowDispatch(scene: {
       const staging = String(args[3])
       return {
         effect: () => {
-          const wrapper = path.join(staging, 'deepseek-harness-' + RELEASE_TAG)
+          const wrapper = staging + path.sep + 'deepseek-harness-' + RELEASE_TAG
           fs.mkdirSync(wrapper, { recursive: true })
           fs.writeFileSync(
             path.join(wrapper, 'package.json'),
@@ -284,7 +284,7 @@ describe('downloadReleaseTarball / extractTarball / readLocalPackageVersion（�
 
   it('extractTarball：单层顶层目录自动展平到 staging 根', async () => {
     const staging = path.join(base, 'ex-ok')
-    const wrapper = path.join(staging, 'deepseek-harness-' + RELEASE_TAG)
+    const wrapper = staging + path.sep + 'deepseek-harness-' + RELEASE_TAG
     fs.mkdirSync(wrapper, { recursive: true })
     fs.writeFileSync(path.join(wrapper, 'package.json'), '{"version":"1"}', 'utf8')
     fs.mkdirSync(path.join(wrapper, 'apps'), { recursive: true })
@@ -403,7 +403,11 @@ describe('一键更新流水线', () => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'vcgh-upd-'))
 
   function newInstallRoot(name: string): string {
-    const root = path.join(base, name)
+    // 门禁安全（路径穿越防护）：name 先过单段 kebab 白名单（拒绝 ../ 与分隔符），
+    // 再 resolve 后强制校验包含在 base 内（以 path.sep 结尾前缀比较）
+    if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`非法安装目录名: ${JSON.stringify(name)}`)
+    const root = path.resolve(base, name)
+    if (!root.startsWith(base + path.sep)) throw new Error(`安装目录越界: ${root}`)
     fs.mkdirSync(root, { recursive: true })
     fs.writeFileSync(
       path.join(root, 'package.json'),

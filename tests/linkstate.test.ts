@@ -9,7 +9,7 @@ import {
   removeLink,
   scanWindowsAgents
 } from '../src/main/winLinks'
-import { DEFAULT_REGISTRY } from '../src/shared/registry'
+import { defaultRegistry } from '../src/shared/registry'
 
 let tmp = ''
 let vault = ''
@@ -122,7 +122,7 @@ describe('scanWindowsAgents', () => {
   })
 
   it('默认 registry 结构可被扫描逻辑接受（4 agents）', () => {
-    const scans = scanWindowsAgents(vault, DEFAULT_REGISTRY)
+    const scans = scanWindowsAgents(vault, defaultRegistry())
     expect(scans.map((s) => s.name)).toEqual(['zcode-win', 'codex-win', 'agents-win'])
   })
 
