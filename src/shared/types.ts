@@ -77,9 +77,19 @@ export type RegistryAgent = {
   include: string[]
   /** 子智能体共享目录（整目录链接到 vault agents/）；v1 数据缺省为 undefined */
   agentsDir?: string
+  /** 展示名（如 "Claude Code"）；缺省时 UI 回落 name */
+  label?: string
+  /** 条目来源：builtin 默认 4 条 / discovered 自动发现 / manual 用户手加；旧数据缺省视为 builtin */
+  source?: 'builtin' | 'discovered' | 'manual'
+  /** 是否启用（缺省视为 true）；停用条目不参与扫描与建链，但条目本身保留 */
+  enabled?: boolean
+  /** discovered 来源命中的签名 id（genericSweep 兜底为 generic:<dirname>） */
+  sigId?: string
+  /** discovered/manual 条目本轮扫描状态：目录消失标 missing（绝不删除条目），builtin 不参与状态标记 */
+  status?: 'active' | 'missing'
 }
 
-export type Registry = { version: 2; agents: RegistryAgent[] }
+export type Registry = { version: 3; agents: RegistryAgent[] }
 
 export type ImportPlan = {
   ok: boolean
@@ -370,3 +380,147 @@ export type ApiHubImportResult = { imported: boolean; profile: ApiHubProfileView
 
 /** IPC 统一返回封装 */
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string }
+
+// ===== REGION-APIHUB-TYPES（并发子代理在下方追加接口中心类型，勿改本行及以上内容） =====
+
+// ---------- 接口中心：动态目录（注册表驱动） ----------
+
+/**
+ * 动态目录里的条目 id：有写配置实现的适配器沿用 ApiHubAdapterId（档案、切换、导入全部照旧）；
+ * 注册表检测到但接口中心没有实现的 agent 生成「说明卡」，用 'na:<sigId>' 命名空间占位
+ * （不污染 ApiHubAdapterId 联合类型 —— 档案库的键永远只可能是真有实现的那几个）。
+ */
+export type ApiHubCatalogId = ApiHubAdapterId | `na:${string}`
+
+/** 动态合成的目录项（apihub:adapters 返回；id 可能是 na: 说明卡，UI 只展示不提供操作） */
+export type ApiHubCatalogEntry = Omit<ApiHubAdapterInfo, 'id'> & {
+  id: ApiHubCatalogId
+  /** 命中的 agent 签名 id（说明卡文案「检测到谁」用；有实现的卡也回填便于排查） */
+  sigId?: string
+  /** 注册表里的展示名（说明卡文案用；与 label 可能不同，如「Claude Code」vs「Claude Code CLI」） */
+  agentLabel?: string
+}
+
+/** apihub:adapters 返回：degraded=true 表示注册表读不到/还没有签名信息，已回落内置静态目录（绝不白屏） */
+export type ApiHubCatalogResult = { adapters: ApiHubCatalogEntry[]; degraded: boolean; reason?: string }
+
+// ---------- 接口中心：自定义供应商（用户自己填 API 地址 + 密钥，一次配置处处一键填入） ----------
+
+/** 接口格式（决定"切换给谁用"时按哪一套字段预填：Anthropic / OpenAI / Gemini 兼容） */
+export type ApiHubProviderProtocol = 'anthropic' | 'openai' | 'gemini'
+
+/** 落盘形态：apiKeySealed 与档案同族（safeStorage/DPAPI 加密，明文绝不出主进程） */
+export type ApiHubCustomProvider = {
+  id: string
+  label: string
+  baseUrl: string
+  protocol: ApiHubProviderProtocol
+  defaultModel?: string
+  notes?: string
+  apiKeySealed: string
+  plainStore?: true
+  createdAt: number
+}
+
+/** 新增/编辑自定义供应商输入（apiKeyPlain 明文单独走 save 入参；编辑时留空 = 不改动密钥） */
+export type ApiHubCustomProviderInput = {
+  id?: string
+  label: string
+  baseUrl: string
+  protocol: ApiHubProviderProtocol
+  defaultModel?: string
+  notes?: string
+}
+
+/** 脱敏视图：密钥只回尾 4 位与长度，明文永不返回渲染层 */
+export type ApiHubCustomProviderView = {
+  id: string
+  label: string
+  baseUrl: string
+  protocol: ApiHubProviderProtocol
+  defaultModel?: string
+  notes?: string
+  apiKeyTail: string | null
+  apiKeyLen: number | null
+  plainStore: boolean
+  createdAt: number
+}
+
+/**
+ * apihub:save 的输入扩展：apiKeyPlain 留空且带 apiKeyFromProviderId 时，
+ * 主进程直接用该自定义供应商的密钥（明文不经过 IPC，渲染层也不需要回显密钥）。
+ */
+export type ApiHubProfileSaveInput = ApiHubProfileInput & { apiKeyFromProviderId?: string }
+
+/** 「从自定义供应商一键填入」结果：fields 按适配器 fieldDefs 能填多少填多少；missing 为需用户手填的字段标签 */
+export type ApiHubProviderPrefill = { fields: Record<string, string>; missing: string[]; notes: string[] }
+
+// ---------- 版本中心：可见性（按注册表自动隐藏未检测到的工具）+ 固定显示 ----------
+
+/** 版本目录视图项：detected=注册表里对应 agent active 且 enabled；visible=detected 或用户固定显示 */
+export type VersionCatalogView = {
+  id: string
+  name: string
+  channel: string
+  channelKind: VersionChannelKind
+  /** 对应 agent 签名 id（claude / codex / kimi / grok / dsh / zcode） */
+  sigId: string
+  hint?: string
+  detected: boolean
+  visible: boolean
+  pinned: boolean
+}
+
+/** versions:catalog 返回：degraded=true 表示注册表读不到、已按「全部显示」保守降级 */
+export type VersionCatalogResult = {
+  entries: VersionCatalogView[]
+  hiddenCount: number
+  degraded: boolean
+  reason?: string
+  /** 用户是否打开了「显示全部（含未检测到的）」；打开时 checkAll 也遍历全部条目 */
+  showHidden: boolean
+}
+
+// ===== REGION-IMPORT-TYPES（并发子代理在下方追加导入扫描类型，勿改本行及以上内容） =====
+
+// ---------- 导入自动扫描（skillScan.ts）：把「手动挑文件夹」换成「扫出来给你勾」 ----------
+
+/**
+ * 候选状态：
+ * - importable 可导入
+ * - linked     已入库（原位置已是指向 vault 的快捷方式，真身就在库里）
+ * - conflict   vault 里已有同名 skill（重名，导入会被拒绝，绝不覆盖）
+ * - error      解析/读取失败（断链、无权限等，原因见 errors）
+ */
+export type SkillScanStatus = 'importable' | 'linked' | 'conflict' | 'error'
+
+/** 一个可导入的 skill 目录（只有含 SKILL.md 的目录才会成为候选） */
+export type SkillScanCandidate = {
+  /** 候选目录原始路径（交给 import:run 的正是它） */
+  dir: string
+  /** 技能名（链接解析后真身目录的 basename，与导入后 vault 内的目录名一致） */
+  skillName: string
+  /** 是否含 SKILL.md（候选恒为 true；保留字段便于 UI 直接展示） */
+  hasSkillMd: boolean
+  /** 该路径本身是 junction/symlink（真身在别处，导入时解析到真身） */
+  isLink: boolean
+  /** vault 中已存在同名 skill */
+  vaultConflict: boolean
+  /** 来源 agent 名（额外目录为 '额外目录'） */
+  sourceAgent: string
+  /** 相对来源的层级：agent skillsDir 的直接子目录为 1；额外目录自身为 0 */
+  depth: number
+  status: SkillScanStatus
+}
+
+/** 参与本轮扫描的 agent（含 0 个 skill 目录的：说明扫过了但目录是空的） */
+export type SkillScanAgent = { name: string; label: string; skillsDir: string; dirCount: number }
+
+/** 个别目录的问题（不存在/读不了/断链）：只记录，不中断整体扫描 */
+export type SkillScanError = { dir: string; reason: string }
+
+export type SkillScanResult = {
+  candidates: SkillScanCandidate[]
+  scannedAgents: SkillScanAgent[]
+  errors: SkillScanError[]
+}

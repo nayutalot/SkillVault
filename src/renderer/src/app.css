@@ -39,6 +39,8 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+  row-gap: 4px;
+  flex-wrap: wrap;
   padding: 10px 20px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
@@ -57,11 +59,15 @@ body {
   font-size: 12px;
   margin-left: auto;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* 导航共 9 项：空间不足时按钮换行整行排，绝不把按钮里的中文压成一字一行 */
 .nav {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
 }
 
 .nav-btn {
@@ -72,6 +78,8 @@ body {
   cursor: pointer;
   font-size: 14px;
   color: var(--muted);
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .nav-btn:hover {
@@ -460,6 +468,35 @@ body {
 
 .table th {
   color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 状态徽标在表格窄列里也不许折行（"已入库（跳过）"折成两行非常难看） */
+.table td .tag {
+  white-space: nowrap;
+}
+
+/* 接口中心选项卡上"暂不支持"小标 */
+.na-mark {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+/* 导入页"扫到的位置"：标签流式换行，不排成一大段 */
+.scan-locations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.scan-locations .tag {
+  margin-left: 0;
 }
 
 .input {

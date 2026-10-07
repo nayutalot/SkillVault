@@ -13,6 +13,7 @@ import type {
   Result,
   ScanReport,
   ScanWslData,
+  SkillScanResult,
   SyncResult
 } from '../shared/types'
 import { loadSettings, saveSettings, type AppSettings } from './settings'
@@ -30,10 +31,13 @@ import {
   vaultSkillDir
 } from './winLinks'
 import { executeImport, planImport } from './importer'
+import { scanImportCandidates } from './skillScan'
 import { runWslScan } from './wslScan'
 import { syncAll } from './sync'
 import { applyFix, runDoctor } from './doctor'
-import { parseRegistry, defaultRegistry, REGISTRY_VERSION } from '../shared/registry'
+import { isAgentActive, parseRegistry, defaultRegistry, REGISTRY_VERSION } from '../shared/registry'
+import { refreshRegistry, setAgentEnabled } from './agentDiscover'
+import type { AgentDiscoverReport } from '../shared/agentSignatures'
 import { git } from './git'
 import { WSL_VAULT, wslUncSkillDir } from '../shared/paths'
 import { decodeTextBuffer } from '../shared/textDecode'
@@ -206,6 +210,7 @@ export function registerIpc(): void {
       const { registry } = readRegistry(s.vaultPath)
       const agent = registry.agents.find((a) => a.name === arg.agentName && a.platform === 'windows')
       if (!agent) throw new Error(`registry 中找不到 Windows agent: ${arg.agentName}`)
+      if (!isAgentActive(agent)) throw new Error(`该 Agent 已停用: ${agent.name}`)
       if (arg.kind === 'agents') {
         if (!agent.agentsDir) throw new Error(`agent 未配置 agentsDir，无法建立子智能体链接: ${agent.name}`)
         const target = vaultAgentsDir(s.vaultPath)
@@ -238,6 +243,7 @@ export function registerIpc(): void {
       const { registry } = readRegistry(s.vaultPath)
       const agent = registry.agents.find((a) => a.name === arg.agentName && a.platform === 'windows')
       if (!agent) throw new Error(`registry 中找不到 Windows agent: ${arg.agentName}`)
+      if (!isAgentActive(agent)) throw new Error(`该 Agent 已停用: ${agent.name}`)
       if (arg.kind !== 'agents' && arg.skillName && !isValidSkillName(arg.skillName)) {
         throw new Error(`非法 skill 名（仅允许 ^[a-z0-9][a-z0-9-]*$）: ${JSON.stringify(String(arg.skillName))}`)
       }
@@ -489,6 +495,7 @@ export function registerIpc(): void {
       const { registry } = readRegistry(s.vaultPath)
       const agent = registry.agents.find((a) => a.name === name && a.platform === 'windows')
       if (!agent) throw new Error(`registry 中找不到 Windows agent: ${name}`)
+      if (!isAgentActive(agent)) throw new Error(`该 Agent 已停用: ${agent.name}`)
       if (!agent.agentsDir) throw new Error(`agent 未配置 agentsDir，无法修复: ${agent.name}`)
       return repairAgentsDirHardlinks(s.vaultPath, agent.agentsDir)
     })
@@ -661,5 +668,193 @@ export function registerIpc(): void {
       versions: { electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome },
       userData: app.getPath('userData')
     }))
+  )
+
+  // ---------- Agent 自动发现（扫描本机已装 agent/harness 并动态合并进 registry.json） ----------
+
+  /** 双侧发现（Windows 真实 fs + WSL companion `scan --agents`）→ 合并 → 写回 registry.json，返回报告与合并后注册表 */
+  ipcMain.handle('agents:discover', () =>
+    envelopeAsync(async (): Promise<AgentDiscoverReport> => {
+      const s = loadSettings(settingsDir())
+      // 与 syncAll / registry:save 共用互斥：三者都会写 vault（registry.json），串行避免写冲突与半截文件
+      return withSyncLock(() => refreshRegistry(s))
+    })
+  )
+
+  /** 启用/停用注册表条目（停用条目不参与扫描与建链，条目本身保留；重新启用后由下一轮扫描定 status） */
+  ipcMain.handle('agents:setEnabled', (_e, arg: { name: string; enabled: boolean }) =>
+    envelopeAsync(async (): Promise<Registry> => {
+      const enabled = arg?.enabled
+      if (typeof enabled !== 'boolean') throw new Error('enabled 必须是布尔值')
+      const s = loadSettings(settingsDir())
+      return withSyncLock(() => setAgentEnabled(s, String(arg?.name ?? ''), enabled))
+    })
+  )
+
+  // ===== REGION-IPC-APIHUB（并发子代理在下方追加 ipcMain.handle，勿改本行及以上内容） =====
+
+  // ---------- 接口中心：目录动态合成 + 自定义供应商（Wave 2 追加区） ----------
+  // 共享文件禁止改标记行以上，而 apihub:adapters / apihub:save / versions:checkAll 的旧实现注册在上方
+  // （读静态目录、无可见性过滤），这里用 removeHandler + handle 在同一通道上换成动态实现 —— 通道名与
+  // 返回结构保持向后兼容（只加字段不删字段）。新模块一律 await import()：文件顶部 import 块不在本区可改范围。
+
+  /** 目录 = 注册表（active 且 enabled）× 实现矩阵；注册表读不到回落内置静态目录（degraded=true） */
+  ipcMain.removeHandler('apihub:adapters')
+  ipcMain.handle('apihub:adapters', () =>
+    envelopeAsync(async () => {
+      const { buildApiHubCatalog } = await import('./apihub/adapters')
+      return buildApiHubCatalog({ vaultPath: loadSettings(settingsDir()).vaultPath, fsMod: fs })
+    })
+  )
+
+  /** 自定义供应商列表（密钥只回尾号与长度） */
+  ipcMain.handle('apihub:providers:list', () =>
+    envelopeAsync(async () => {
+      const { listCustomProviderViews } = await import('./apihub/store')
+      return listCustomProviderViews(loadHubStore(settingsDir(), fs), kimiSealer)
+    })
+  )
+
+  /** 新增/编辑自定义供应商：明文只在本次入参存在，主进程立即 seal；返回脱敏视图 */
+  ipcMain.handle(
+    'apihub:providers:save',
+    (_e, arg: { input: import('../shared/types').ApiHubCustomProviderInput; apiKeyPlain: string }) =>
+      envelopeAsync(async () => {
+        const { upsertCustomProvider, customProviderView } = await import('./apihub/store')
+        const saved = upsertCustomProvider(settingsDir(), arg?.input, String(arg?.apiKeyPlain ?? ''), kimiSealer, fs)
+        return customProviderView(saved, kimiSealer)
+      })
+  )
+
+  /** 删除自定义供应商（返回删除后的列表便于刷新；已引用它的档案不受影响） */
+  ipcMain.handle('apihub:providers:delete', (_e, arg: { id: string }) =>
+    envelopeAsync(async () => {
+      const { deleteCustomProvider, listCustomProviderViews } = await import('./apihub/store')
+      const store = deleteCustomProvider(settingsDir(), String(arg?.id ?? ''), fs)
+      return listCustomProviderViews(store, kimiSealer)
+    })
+  )
+
+  /** 档案「另存为自定义供应商」：密钥在主进程内部从档案密文转存为供应商密文，明文一次都不出现 */
+  ipcMain.handle(
+    'apihub:providers:fromProfile',
+    (_e, arg: { adapterId: ApiHubAdapterId; profileId: string; label?: string }) =>
+      envelopeAsync(async () => {
+        const { customProviderFromProfile, customProviderView } = await import('./apihub/store')
+        const p = customProviderFromProfile(
+          settingsDir(),
+          arg?.adapterId,
+          String(arg?.profileId ?? ''),
+          typeof arg?.label === 'string' ? arg.label : undefined,
+          kimiSealer,
+          fs
+        )
+        return customProviderView(p, kimiSealer)
+      })
+  )
+
+  /** 「从自定义供应商一键填入」：按目标适配器的 fieldDefs 算出能填的字段（纯映射，不落盘、不解密） */
+  ipcMain.handle('apihub:providers:prefill', (_e, arg: { adapterId: ApiHubAdapterId; providerId: string }) =>
+    envelopeAsync(async () => {
+      const { providerPrefill } = await import('./apihub/adapters')
+      const { findCustomProvider } = await import('./apihub/store')
+      const p = findCustomProvider(loadHubStore(settingsDir(), fs), String(arg?.providerId ?? ''))
+      if (!p) throw new Error('找不到自定义供应商: ' + String(arg?.providerId ?? ''))
+      return providerPrefill(arg?.adapterId, p)
+    })
+  )
+
+  /**
+   * 保存档案：与旧实现同规矩（校验 + seal + 脱敏返回），额外支持 apiKeyFromProviderId ——
+   * 密钥留空且指定了自定义供应商时，直接用该供应商的密钥（明文不经过 IPC，渲染层也无需回显）。
+   */
+  ipcMain.removeHandler('apihub:save')
+  ipcMain.handle(
+    'apihub:save',
+    (_e, arg: { input: import('../shared/types').ApiHubProfileSaveInput; apiKeyPlain: string }) =>
+      envelopeAsync(async () => {
+        const input = arg?.input
+        if (!input || !API_HUB_CATALOG.find((a) => a.id === input.adapterId)?.available) throw new Error('未知或不可用适配器')
+        let apiKeyPlain = String(arg?.apiKeyPlain ?? '')
+        const fromProvider = typeof input.apiKeyFromProviderId === 'string' ? input.apiKeyFromProviderId : ''
+        const err = validateHubFields(input.adapterId, input.fields ?? {}, Boolean(apiKeyPlain.trim()) || Boolean(fromProvider))
+        if (err) throw new Error(err)
+        if (!apiKeyPlain.trim() && fromProvider) {
+          const { findCustomProvider, hubDecryptKey } = await import('./apihub/store')
+          const p = findCustomProvider(loadHubStore(settingsDir(), fs), fromProvider)
+          if (!p) throw new Error('找不到自定义供应商: ' + fromProvider)
+          // 明文只在主进程内存里存在一瞬间，随即被 upsertHubProfile seal
+          apiKeyPlain = hubDecryptKey(p, kimiSealer)
+        }
+        const saved = upsertHubProfile(settingsDir(), input, apiKeyPlain, kimiSealer, fs)
+        return hubProfileView(saved, kimiSealer)
+      })
+  )
+
+  // ---------- 版本中心：可见性（按注册表自动隐藏未检测到的工具）+ 固定显示 ----------
+
+  /** 目录视图：每条带 detected/visible/pinned；注册表读不到 → 全部可见 + degraded（保守降级） */
+  ipcMain.handle('versions:catalog', () =>
+    envelopeAsync(async () => {
+      const { versionCatalogFromDisk } = await import('./versionCenter/visibility')
+      const s = loadSettings(settingsDir())
+      return versionCatalogFromDisk({ vaultPath: s.vaultPath, userDataDir: app.getPath('userData'), fsMod: fs })
+    })
+  )
+
+  /** 固定显示 / 取消固定（没检测到也留着）；返回刷新后的目录视图 */
+  ipcMain.handle('versions:setPinned', (_e, arg: { id: string; pinned: boolean }) =>
+    envelopeAsync(async () => {
+      const { setVersionPinned, versionCatalogFromDisk } = await import('./versionCenter/visibility')
+      const userData = app.getPath('userData')
+      setVersionPinned(userData, String(arg?.id ?? ''), arg?.pinned === true, fs)
+      return versionCatalogFromDisk({ vaultPath: loadSettings(settingsDir()).vaultPath, userDataDir: userData, fsMod: fs })
+    })
+  )
+
+  /** 「显示全部（含未检测到的）」开关（持久化；打开后 checkAll 也遍历全部条目） */
+  ipcMain.handle('versions:setShowHidden', (_e, arg: { show: boolean }) =>
+    envelopeAsync(async () => {
+      const { setVersionShowHidden, versionCatalogFromDisk } = await import('./versionCenter/visibility')
+      const userData = app.getPath('userData')
+      setVersionShowHidden(userData, arg?.show === true, fs)
+      return versionCatalogFromDisk({ vaultPath: loadSettings(settingsDir()).vaultPath, userDataDir: userData, fsMod: fs })
+    })
+  )
+
+  /** 版本检查：默认只遍历可见条目（没检测到的工具不查，省时间也少弹失败）；includeHidden 或已开「显示全部」→ 全部 */
+  ipcMain.removeHandler('versions:checkAll')
+  ipcMain.handle('versions:checkAll', (_e, arg?: { useCache?: boolean; id?: string; includeHidden?: boolean }) =>
+    envelopeAsync(async () => {
+      const { versionCatalogFromDisk, visibleVersionIds } = await import('./versionCenter/visibility')
+      const catalog = versionCatalogFromDisk({
+        vaultPath: loadSettings(settingsDir()).vaultPath,
+        userDataDir: app.getPath('userData'),
+        fsMod: fs
+      })
+      const ids = arg?.includeHidden === true || catalog.showHidden ? null : visibleVersionIds(catalog)
+      if (arg?.id) return runVersionCheckSingle(String(arg.id), { ...vcDeps(), visibleIds: ids })
+      if (arg?.useCache) {
+        const cached = readVersionCache(vcDeps().cacheFile)
+        if (cached) {
+          // 缓存里可能还有上次"显示全部"留下的隐藏条目：按当前可见集过滤，UI 不必再判一次
+          const statuses = ids ? cached.statuses.filter((st) => ids.includes(st.id)) : cached.statuses
+          return { ...cached, statuses, stale: true, reason: '来自缓存' }
+        }
+      }
+      return runVersionCheckAll({ ...vcDeps(), visibleIds: ids })
+    })
+  )
+
+  // ===== REGION-IPC-IMPORT（并发子代理在下方追加 ipcMain.handle，勿改本行及以上内容） =====
+
+  /** 导入自动扫描：主进程自己读 settings/registry，渲染层只传一个可选的额外目录（绝不信任路径白名单外的输入） */
+  ipcMain.handle('import:scanCandidates', (_e, arg?: { extraDir?: string }) =>
+    envelope((): SkillScanResult => {
+      const s = loadSettings(settingsDir())
+      const { registry } = readRegistry(s.vaultPath)
+      const extra = typeof arg?.extraDir === 'string' ? arg.extraDir : undefined
+      return scanImportCandidates(s.vaultPath, registry, extra)
+    })
   )
 }

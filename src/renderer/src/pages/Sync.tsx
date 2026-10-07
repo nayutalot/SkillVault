@@ -29,7 +29,7 @@ export default function SyncPage({ notify }: { notify: Notify }): React.JSX.Elem
       return
     }
     setRes(r.data)
-    notify(r.data.conflicts.length ? 'err' : 'ok', r.data.conflicts.length ? '同步完成但有冲突' : '双侧同步完成')
+    notify(r.data.conflicts.length ? 'err' : 'ok', r.data.conflicts.length ? '同步完成，但有冲突需要处理' : 'Windows 和 WSL 都已同步')
   }
 
   /** git bundle 单向同步到单个远程目标（目标必须已保存且启用；结果如实显示，绝不伪造成功） */
@@ -52,23 +52,24 @@ export default function SyncPage({ notify }: { notify: Notify }): React.JSX.Elem
     <div>
       <div className="toolbar">
         <button className="btn primary" disabled={busy} onClick={() => void run()}>
-          {busy ? '同步中…' : '开始双侧同步'}
+          {busy ? '同步中…' : '开始同步'}
         </button>
       </div>
 
       <div className="card">
-        <h3>同步机制（零云远端）</h3>
+        <h3>数据存在哪？会上传云端吗？</h3>
         <p className="hint">
-          数据面只有本地裸仓 <code>用户目录下 SkillVault.git</code> 作为唯一 origin：Windows 工作克隆
-          <code>用户目录下 SkillVault</code> 与 WSL 工作克隆 <code>/root/skill-vault</code> 互为对端，全部 push/pull
-          都指向本地裸仓，不涉及任何云仓库。
+          所有技能都保存在你自己电脑上的一个仓库里（用户目录下的 SkillVault 文件夹）。Windows 和 WSL
+          两边通过它互相同步，全程不经过任何云服务，也不会把内容发到网上。
         </p>
         <ol className="hint">
-          <li>Windows：add -A →（有差异才）commit “skillvault sync &lt;ISO时间&gt;” → push origin main</li>
-          <li>WSL（companion sync）：add -A → commit → pull --rebase origin main → push origin main</li>
-          <li>Windows：pull origin main</li>
+          <li>第一步（Windows）：把这里的改动存档，然后推送到中转仓库。</li>
+          <li>第二步（WSL）：把 WSL 里的改动存档，先取回 Windows 的最新版本，再推送自己的改动。</li>
+          <li>第三步（Windows）：把 WSL 推上来的最新版本取回来。</li>
         </ol>
-        <p className="hint">冲突时 git 输出原样展示在下方，绝不使用 force。</p>
+        <p className="hint">
+          两边同时改了同一个文件才会出现冲突。真冲突时不会强推覆盖，而是把原始输出原样列在下方，按提示人工处理。
+        </p>
       </div>
 
       {res && (
@@ -96,14 +97,16 @@ export default function SyncPage({ notify }: { notify: Notify }): React.JSX.Elem
       )}
 
       <div className="card">
-        <h3>远程目标（SSH / Docker）</h3>
-        {!settings && <div className="empty">设置读取中…</div>}
+        <h3>推送到别的电脑（SSH / Docker）</h3>
+        {!settings && <div className="empty">正在读取设置…</div>}
         {settings && settings.remoteTargets.length === 0 && (
-          <div className="empty">尚未配置远程目标，可在设置中添加 SSH 主机或 Docker 容器。</div>
+          <div className="empty">
+            还没有配置远程电脑。如果你想把技能库也放到另一台电脑或容器里，可以到设置页添加一个 SSH 主机或 Docker 容器。
+          </div>
         )}
         {settings && settings.remoteTargets.length > 0 && enabledTargets.length === 0 && (
           <div className="empty">
-            共 {settings.remoteTargets.length} 个远程目标，但全部处于停用状态（可在设置页启用）。
+            共 {settings.remoteTargets.length} 个远程目标，但都被停用了（到设置页勾选「启用」即可使用）。
           </div>
         )}
         {enabledTargets.map((t) => {
@@ -134,12 +137,11 @@ export default function SyncPage({ notify }: { notify: Notify }): React.JSX.Elem
           )
         })}
         {disabledTargets.length > 0 && (
-          <div className="hint">停用中的目标：{disabledTargets.map((t) => t.label).join('、')}</div>
+          <div className="hint">已停用（不会参与推送）：{disabledTargets.map((t) => t.label).join('、')}</div>
         )}
         <p className="hint">
-          远程同步为 git bundle 单向传输：本地 <code>git bundle create --all</code> → 上传 bundle → 远端{' '}
-          <code>git -C ~/skill-vault pull &lt;bundle&gt; main</code>。远端需已存在 ~/skill-vault 克隆；凭据走系统
-          ssh-agent，本应用不存储密码。
+          推送过程：先把本地技能库打包成一个文件，传到对方电脑，再让对方把这个文件里的内容合并进它自己的技能库。对方需要已经有一份
+          技能库副本（设置过的路径）。连接用的密码由系统自带的 SSH 工具管理，本软件不保存密码。
         </p>
       </div>
     </div>

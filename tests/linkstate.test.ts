@@ -102,7 +102,7 @@ describe('removeLink', () => {
 describe('scanWindowsAgents', () => {
   it('按 registry 扫描各 agent 的链接状态', () => {
     const reg = {
-      version: 2 as const,
+      version: 3 as const,
       agents: [
         { name: 'a1', platform: 'windows' as const, skillsDir: path.join(tmp, 'a1'), include: ['*'] },
         { name: 'a2', platform: 'windows' as const, skillsDir: path.join(tmp, 'a2'), include: ['*'] },
@@ -134,7 +134,7 @@ describe('scanWindowsAgents', () => {
     fs.mkdirSync(linkedDir, { recursive: true })
     createJunction(path.join(vault, 'agents'), path.join(linkedDir, 'agents'))
     const reg = {
-      version: 2 as const,
+      version: 3 as const,
       agents: [
         { name: 'with-agents', platform: 'windows' as const, skillsDir: agentDir, agentsDir: path.join(linkedDir, 'agents'), include: ['*'] },
         { name: 'unlinked-agents', platform: 'windows' as const, skillsDir: agentDir, agentsDir: path.join(tmp, 'agents-absent'), include: ['*'] },

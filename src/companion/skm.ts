@@ -1,9 +1,11 @@
 // skm — WSL 伴生 CLI（由 esbuild 打成单文件零依赖 ESM：out/skm.mjs）
 // 所有子命令始终输出单个 JSON 对象到 stdout。绝不访问网络（仅 git 本地操作）。
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { agentIncludes, parseRegistry } from '../shared/registry'
+import { agentIncludes, isAgentActive, parseRegistry } from '../shared/registry'
+import { discoverFromHome, genericSweep, type DiscoverDeps } from '../shared/agentSignatures'
 import { parseFrontmatter } from '../shared/frontmatter'
 // decodeTextBuffer 只用于展示（description 随 JSON 回传），绝不写回磁盘——写回等于静默转码。
 import { decodeTextBuffer } from '../shared/textDecode'
@@ -73,7 +75,15 @@ function listSkills(): SkillMeta[] {
 }
 
 function linuxAgents(registry: Registry): RegistryAgent[] {
-  return registry.agents.filter((a) => a.platform === 'linux')
+  // 停用（enabled:false）或本轮标 missing 的条目不参与扫描/建链；条目本身保留在 registry.json
+  return registry.agents.filter((a) => a.platform === 'linux' && isAgentActive(a))
+}
+
+/** --agent <name> 指定条目时的严格校验：命中但已停用 → 明确报错（静默跳过会让调用方以为已建链） */
+function assertNamedAgentActive(registry: Registry, agentName?: string): void {
+  if (!agentName) return
+  const named = registry.agents.find((a) => a.platform === 'linux' && a.name === agentName)
+  if (named && !isAgentActive(named)) fail(`该 Agent 已停用: ${agentName}`)
 }
 
 /** vault agents/ 下的 .md 文件清单（排序；目录不存在返回空） */
@@ -107,6 +117,35 @@ function linkState(linkPath: string, expected: string): LinkState {
 
 // ---------- commands ----------
 
+/** WSL 侧发现用的真实 fs 原语（与 src/main/agentDiscover.ts 的 realDiscoverDeps 同款；companion 不 import 主进程模块） */
+function discoverIo(): DiscoverDeps {
+  return {
+    exists: (p) => fs.existsSync(p),
+    list: (dir) => {
+      try {
+        return fs
+          .readdirSync(dir, { withFileTypes: true })
+          .filter((e) => e.isDirectory() || e.isSymbolicLink())
+          .map((e) => e.name)
+          .sort()
+      } catch {
+        return []
+      }
+    }
+  }
+}
+
+/**
+ * scan --agents：agent 自动发现的 WSL 侧入口（主进程 discoverWslAgents 调用）。
+ * 刻意不读 registry.json、不做逐 skill 的 linkState 统计：发现路径要更快也更耐错 ——
+ * registry.json 损坏/缺失时仍能回答「这台 WSL 的 $HOME 下装了哪些 agent」。
+ */
+function cmdScanAgents(): void {
+  const io = discoverIo()
+  const home = os.homedir()
+  emit({ ok: true, agents: [...discoverFromHome(home, io), ...genericSweep(home, io)], skills: listSkills() })
+}
+
 function cmdScan(): void {
   const registry = loadRegistry()
   const agentFiles = listAgentFiles()
@@ -134,6 +173,7 @@ function cmdLink(skill: string, agentName?: string): void {
   const expected = path.join(SKILLS_DIR, skill)
   if (!fs.existsSync(expected)) fail(`vault 中不存在 skill: ${skill}`)
   const registry = loadRegistry()
+  assertNamedAgentActive(registry, agentName)
   const results: string[] = []
   for (const a of linuxAgents(registry)) {
     if (agentName && a.name !== agentName) continue
@@ -164,6 +204,7 @@ function cmdLink(skill: string, agentName?: string): void {
 function cmdUnlink(skill: string, agentName?: string): void {
   if (!skill) fail('用法: skm unlink <skill> [--agent <name>]')
   const registry = loadRegistry()
+  assertNamedAgentActive(registry, agentName)
   const results: string[] = []
   for (const a of linuxAgents(registry)) {
     if (agentName && a.name !== agentName) continue
@@ -188,6 +229,7 @@ function cmdUnlink(skill: string, agentName?: string): void {
 /** 子智能体整目录链接：agentsDir → vault agents/（相对 symlink；与 skill link 同语义：linked 跳过、real-dir 拒绝） */
 function cmdAgentsLink(agentName?: string): void {
   const registry = loadRegistry()
+  assertNamedAgentActive(registry, agentName)
   if (!fs.existsSync(AGENTS_DIR)) fail(`vault 中不存在 agents 目录: ${AGENTS_DIR}`)
   const results: string[] = []
   for (const a of linuxAgents(registry)) {
@@ -221,6 +263,7 @@ function cmdAgentsLink(agentName?: string): void {
 /** 删除子智能体整目录链接（仅删链接本身，真实目录拒绝） */
 function cmdAgentsUnlink(agentName?: string): void {
   const registry = loadRegistry()
+  assertNamedAgentActive(registry, agentName)
   const results: string[] = []
   for (const a of linuxAgents(registry)) {
     if (agentName && a.name !== agentName) continue
@@ -391,7 +434,8 @@ function main(): void {
   })()
   switch (cmd) {
     case 'scan':
-      return cmdScan()
+      // --agents：轻量发现模式（不读 registry、不统计 linkState）；不传时行为与历史版本完全一致
+      return argv.includes('--agents') ? cmdScanAgents() : cmdScan()
     case 'link':
       return cmdLink(argv[1] ?? '', flagAgent)
     case 'unlink':

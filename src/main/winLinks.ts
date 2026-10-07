@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { AgentScan, AgentsRepairResult, LinkState, Registry, RegistryAgent, SkillMeta } from '../shared/types'
-import { agentIncludes } from '../shared/registry'
+import { agentIncludes, isAgentActive } from '../shared/registry'
 import { parseFrontmatter } from '../shared/frontmatter'
 import { decodeTextBuffer } from '../shared/textDecode'
 
@@ -353,5 +353,8 @@ export function scanWindowsAgent(vaultPath: string, agent: RegistryAgent): Agent
 }
 
 export function scanWindowsAgents(vaultPath: string, registry: Registry): AgentScan[] {
-  return registry.agents.filter((a) => a.platform === 'windows').map((a) => scanWindowsAgent(vaultPath, a))
+  // 停用（enabled:false）或本轮标 missing 的条目不进扫描结果；条目本身保留在 registry.json
+  return registry.agents
+    .filter((a) => a.platform === 'windows' && isAgentActive(a))
+    .map((a) => scanWindowsAgent(vaultPath, a))
 }

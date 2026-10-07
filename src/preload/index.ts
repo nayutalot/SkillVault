@@ -25,6 +25,7 @@ import type {
   Result,
   ScanReport,
   ScanWslData,
+  SkillScanResult,
   SyncResult,
   UpdateStartResult,
   VersionJobSnapshot,
@@ -32,6 +33,7 @@ import type {
   WslHostVm,
   WslOverview
 } from '../shared/types'
+import type { AgentDiscoverReport } from '../shared/agentSignatures'
 
 export type ImportRunResult = { plan: ImportPlan & { steps: string[] } }
 
@@ -165,7 +167,58 @@ export const api = {
   /** WSL 页：terminate / boot / shutdownAll（UI 双重确认后才会到达主进程） */
   wslAction: (action: WslActionName, name?: string): Promise<Result<{ ok: boolean; detail?: string }>> =>
     ipcRenderer.invoke('wsl:action', { action, name }),
-  appInfo: (): Promise<Result<AppInfo>> => ipcRenderer.invoke('app:info')
+  /** Agent 自动发现：双侧扫描（Windows fs + WSL companion）并合并进 registry.json，返回报告与合并后注册表 */
+  discoverAgents: (): Promise<Result<AgentDiscoverReport>> => ipcRenderer.invoke('agents:discover'),
+  /** 启用/停用 agent 条目（返回更新后的注册表；停用条目不参与扫描与建链，条目本身保留） */
+  setAgentEnabled: (name: string, enabled: boolean): Promise<Result<Registry>> =>
+    ipcRenderer.invoke('agents:setEnabled', { name, enabled }),
+  appInfo: (): Promise<Result<AppInfo>> => ipcRenderer.invoke('app:info'),
+  // ===== REGION-PRELOAD-APIHUB（并发子代理在下方追加 api 方法） =====
+
+  // ---------- 接口中心：动态目录 + 自定义供应商（Wave 2 追加；类型用 import() 内联，顶部 import 块不在本区可改范围） ----------
+
+  /** 接口中心：动态目录（注册表里 active 且 enabled 的 agent；未支持的工具给 available:false 的说明卡）
+   *  degraded=true 表示注册表读不到、已回落内置静态目录。旧 apihubAdapters 仍可用，但拿不到 degraded/sigId。 */
+  apihubCatalog: (): Promise<Result<import('../shared/types').ApiHubCatalogResult>> =>
+    ipcRenderer.invoke('apihub:adapters'),
+  /** 接口中心：自定义供应商列表（密钥只回尾 4 位与长度） */
+  apihubProvidersList: (): Promise<Result<import('../shared/types').ApiHubCustomProviderView[]>> =>
+    ipcRenderer.invoke('apihub:providers:list'),
+  /** 接口中心：新增/编辑自定义供应商（apiKeyPlain 明文仅经 IPC，主进程立即加密；编辑留空 = 不改密钥） */
+  apihubProviderSave: (
+    input: import('../shared/types').ApiHubCustomProviderInput,
+    apiKeyPlain: string
+  ): Promise<Result<import('../shared/types').ApiHubCustomProviderView | null>> =>
+    ipcRenderer.invoke('apihub:providers:save', { input, apiKeyPlain }),
+  /** 接口中心：删除自定义供应商（返回删除后的列表） */
+  apihubProviderDelete: (id: string): Promise<Result<import('../shared/types').ApiHubCustomProviderView[]>> =>
+    ipcRenderer.invoke('apihub:providers:delete', { id }),
+  /** 接口中心：把已有档案另存为自定义供应商（密钥在主进程内部转存，明文不出主进程） */
+  apihubProviderFromProfile: (
+    adapterId: ApiHubAdapterId,
+    profileId: string,
+    label?: string
+  ): Promise<Result<import('../shared/types').ApiHubCustomProviderView | null>> =>
+    ipcRenderer.invoke('apihub:providers:fromProfile', { adapterId, profileId, label }),
+  /** 接口中心：「从自定义供应商一键填入」——按目标适配器能填的字段返回预填值（不含密钥明文） */
+  apihubProviderPrefill: (
+    adapterId: ApiHubAdapterId,
+    providerId: string
+  ): Promise<Result<import('../shared/types').ApiHubProviderPrefill>> =>
+    ipcRenderer.invoke('apihub:providers:prefill', { adapterId, providerId }),
+  /** 版本中心：目录视图（detected/visible/pinned + 已隐藏数量；注册表读不到时 degraded 全显示） */
+  versionsCatalog: (): Promise<Result<import('../shared/types').VersionCatalogResult>> =>
+    ipcRenderer.invoke('versions:catalog'),
+  /** 版本中心：固定显示 / 取消固定某条（没检测到也留着）；返回刷新后的目录视图 */
+  versionsSetPinned: (id: string, pinned: boolean): Promise<Result<import('../shared/types').VersionCatalogResult>> =>
+    ipcRenderer.invoke('versions:setPinned', { id, pinned }),
+  /** 版本中心：「显示全部（含未检测到的）」开关（持久化；打开后 checkAll 也遍历全部条目） */
+  versionsSetShowHidden: (show: boolean): Promise<Result<import('../shared/types').VersionCatalogResult>> =>
+    ipcRenderer.invoke('versions:setShowHidden', { show }),
+  // ===== REGION-PRELOAD-IMPORT（并发子代理在下方追加 api 方法） =====
+  /** 导入页：自动扫描各 Agent 技能目录里的可导入项（extraDir 为用户临时补扫的额外目录） */
+  scanImportCandidates: (extraDir?: string): Promise<Result<SkillScanResult>> =>
+    ipcRenderer.invoke('import:scanCandidates', { extraDir }),
 }
 
 export type Api = typeof api

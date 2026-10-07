@@ -17,6 +17,7 @@ import type { KimiSealer } from '../kimi/profiles'
 import { profileInputFromConfigText } from '../kimi/profiles'
 import { backupStamp, parseKimiConfigDisplay, thinkingEnabledOf, tomlQuote } from '../kimi/tomlEdit'
 import { upsertHubProfile } from './store'
+import { STATIC_API_HUB_CATALOG } from './catalog'
 import {
   claudeApplyEnv,
   claudeParseEnv,
@@ -62,102 +63,10 @@ export function adapterPaths(adapterId: ApiHubAdapterId, homeDir: string): strin
 }
 
 // ---------- 目录（CATALOG） ----------
+// 静态目录本体已移到 catalog.ts（与动态合成共用同一份适配器定义，避免两处定义漂移）。
+// 这份静态目录只在注册表读不到时兜底展示；正常情况下目录由 adapters.ts 按注册表动态合成。
 
-const CC_SWITCH_NOTE = '与 CC Switch 管理同一配置，两边切换会互相覆盖，建议统一入口'
-
-export const API_HUB_CATALOG: ApiHubAdapterInfo[] = [
-  {
-    id: 'claude-cli',
-    label: 'Claude Code CLI',
-    available: true,
-    notes: ['写入 ~/.claude/settings.json 的 env 两键，其余内容零改动', '对新会话生效', CC_SWITCH_NOTE],
-    needsKey: true,
-    fieldDefs: [{ key: 'baseUrl', label: 'Base URL', placeholder: 'https://api.example.com' }]
-  },
-  {
-    id: 'claude-desktop',
-    label: 'Claude Desktop',
-    available: false,
-    naReason: '写入目标未能定位（CC Switch 经其本地网关实现），为避免写错文件暂不支持',
-    notes: [CC_SWITCH_NOTE],
-    needsKey: false,
-    fieldDefs: []
-  },
-  {
-    id: 'codex',
-    label: 'Codex',
-    available: true,
-    notes: ['双文件写入：auth.json 的 OPENAI_API_KEY + config.toml 的 model_provider 与 provider 块', '对新会话生效', CC_SWITCH_NOTE],
-    needsKey: true,
-    fieldDefs: [
-      { key: 'providerId', label: 'Provider ID', placeholder: '小写字母/数字/连字符' },
-      { key: 'baseUrl', label: 'Base URL', placeholder: 'https://api.example.com/v1' },
-      { key: 'wireApi', label: 'Wire API', kind: 'select', options: ['responses', 'chat'] }
-    ]
-  },
-  {
-    id: 'grok',
-    label: 'Grok Build CLI',
-    available: true,
-    notes: ['写入 ~/.grok/config.toml 的 [models] default 与 [model."…"] 块，其余段零改动', '对新会话生效', CC_SWITCH_NOTE],
-    needsKey: true,
-    fieldDefs: [
-      { key: 'modelId', label: '模型 ID', placeholder: '如 grok-4.6' },
-      { key: 'baseUrl', label: 'Base URL', placeholder: 'https://api.example.com/v1' },
-      { key: 'name', label: '显示名', placeholder: '可选' },
-      { key: 'apiBackend', label: 'API Backend', kind: 'select', options: ['responses', 'chat'] },
-      { key: 'contextWindow', label: '上下文窗口', placeholder: '如 500000' }
-    ]
-  },
-  {
-    id: 'kimi',
-    label: 'Kimi Code CLI',
-    available: true,
-    notes: [
-      '写入 ~/.kimi-code/config.toml 的 providers / models / default_model / thinking 块，其余段零改动',
-      '对新会话生效',
-      CC_SWITCH_NOTE
-    ],
-    needsKey: true,
-    fieldDefs: [
-      { key: 'providerId', label: 'Provider ID', placeholder: '小写字母/数字/连字符，写入 [providers.xxx]' },
-      { key: 'modelId', label: '模型 ID', placeholder: '如 kimi-k3' },
-      { key: 'baseUrl', label: 'Base URL', placeholder: 'https://…/v1' },
-      { key: 'type', label: 'Type', kind: 'select', options: ['openai', 'anthropic'] },
-      { key: 'modelDisplay', label: '显示名', placeholder: '可选，默认同模型 ID' },
-      { key: 'maxContext', label: '上下文窗口', placeholder: '如 131072' },
-      { key: 'capabilities', label: 'Capabilities', placeholder: '逗号分隔，如 thinking, tool_use' },
-      { key: 'thinkingEnabled', label: 'Thinking', kind: 'select', options: ['true', 'false'] }
-    ]
-  },
-  {
-    id: 'zcode',
-    label: 'ZCode',
-    available: true,
-    notes: [
-      '双文件写入：v2/config.json 的 provider 条目 + v2/setting.json 的当前选中键',
-      'ZCode 运行中切换可能被其覆盖，建议退出后切换、重启 ZCode 生效',
-      CC_SWITCH_NOTE
-    ],
-    needsKey: true,
-    fieldDefs: [
-      { key: 'providerId', label: 'Provider ID', placeholder: '小写字母/数字/连字符' },
-      { key: 'providerName', label: '供应商名称', placeholder: '显示用名称' },
-      { key: 'baseURL', label: 'Base URL', placeholder: 'https://…/api/anthropic' },
-      { key: 'kind', label: 'Kind', kind: 'select', options: ['anthropic'] },
-      { key: 'selectedKeyForm', label: '选中键形态（留空自动派生）', advanced: true, placeholder: 'coding-plan:builtin:<id>' }
-    ]
-  },
-  {
-    id: 'deepseek',
-    label: 'DeepSeek Harness',
-    available: false,
-    naReason: 'Chrome PWA 应用，账户认证在云端，无本地 API 配置可切换',
-    notes: [],
-    needsKey: false,
-    fieldDefs: []
-  }
-]
+export const API_HUB_CATALOG: ApiHubAdapterInfo[] = STATIC_API_HUB_CATALOG
 
 // ---------- 内部工具 ----------
 

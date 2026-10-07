@@ -1,8 +1,9 @@
 // 版本中心：检测全部 agent harness 的已装版本 vs 最新版本，一键更新（仅用户点击触发，绝不自动更新）。
-// 交互流：进页先读缓存秒回 → 自动跑一轮实时检查 → 「一键更新」先经主进程预检（进程在运行则弹确认框）→
+// 交互流：进页先读目录 + 缓存秒回 → 自动跑一轮实时检查 → 「一键更新」先经主进程预检（进程在运行则弹确认框）→
 // job 轮询增量日志（滚动到底 + 可取消）→ 完成后 toast 并用回查结果刷新行内版本。
+// 可见性：注册表里没检测到对应工具的条目默认隐藏（少一堆"未安装"的噪音），可单条「固定显示」或一键「显示全部」。
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CheckAllResult, UpdateStartResult, VersionJobSnapshot, VersionStatus } from '../../../shared/types'
+import type { CheckAllResult, UpdateStartResult, VersionCatalogResult, VersionJobSnapshot, VersionStatus } from '../../../shared/types'
 import type { Notify } from '../App'
 
 const KIND_LABEL: Record<VersionStatus['channelKind'], string> = {
@@ -33,6 +34,7 @@ type JobView = {
 type ConfirmState = { status: VersionStatus; processName?: string }
 
 export default function VersionCenterPage({ notify }: { notify: Notify }): React.JSX.Element {
+  const [catalog, setCatalog] = useState<VersionCatalogResult | null>(null)
   const [result, setResult] = useState<CheckAllResult | null>(null)
   const [checking, setChecking] = useState(false)
   const [rowChecking, setRowChecking] = useState<Record<string, boolean>>({})
@@ -51,6 +53,16 @@ export default function VersionCenterPage({ notify }: { notify: Notify }): React
   const patchStatus = useCallback((next: VersionStatus): void => {
     setResult((p) => (p ? { ...p, statuses: p.statuses.map((s) => (s.id === next.id ? next : s)) } : p))
   }, [])
+
+  const loadCatalog = useCallback(async (): Promise<VersionCatalogResult | null> => {
+    const r = await window.api.versionsCatalog()
+    if (!r.ok) {
+      notify('err', r.error || '读取版本目录失败')
+      return null
+    }
+    setCatalog(r.data)
+    return r.data
+  }, [notify])
 
   const loadCache = useCallback(async (): Promise<void> => {
     const r = await window.api.versionsCheckAll({ useCache: true })
@@ -86,11 +98,39 @@ export default function VersionCenterPage({ notify }: { notify: Notify }): React
     [notify, patchStatus]
   )
 
-  // 进页：先渲染缓存，再自动跑一轮实时检查（绝不触发更新）
+  /** 「显示全部（含未检测到的）」：主进程持久化开关，打开后 checkAll 也遍历全部条目，所以开关后要重查一轮 */
+  const toggleShowHidden = useCallback(async (): Promise<void> => {
+    const next = !(catalog?.showHidden ?? false)
+    const r = await window.api.versionsSetShowHidden(next)
+    if (!r.ok) {
+      notify('err', r.error || '切换显示范围失败')
+      return
+    }
+    setCatalog(r.data)
+    if (next) await checkAllFresh()
+  }, [catalog, checkAllFresh, notify])
+
+  const togglePin = useCallback(
+    async (id: string, pinned: boolean): Promise<void> => {
+      const r = await window.api.versionsSetPinned(id, pinned)
+      if (!r.ok) {
+        notify('err', r.error || '固定显示失败')
+        return
+      }
+      setCatalog(r.data)
+      notify('ok', pinned ? '已固定显示：以后即使没检测到也会留着' : '已取消固定显示')
+    },
+    [notify]
+  )
+
+  // 进页：先读目录与缓存渲染，再自动跑一轮实时检查（绝不触发更新）
   useEffect(() => {
-    void loadCache()
-    void checkAllFresh()
-  }, [loadCache, checkAllFresh])
+    void (async () => {
+      await loadCatalog()
+      await loadCache()
+      await checkAllFresh()
+    })()
+  }, [loadCatalog, loadCache, checkAllFresh])
 
   // 更新 job 轮询：有 running job 时每 800ms 拉一次增量日志与状态；done → toast + 回查结果刷新行。
   // 自续依赖 setJobs 产生新 state 触发 effect 重跑 —— 失败 tick 也必须触发下一轮（哪怕只是浅拷贝 jobs），
@@ -172,8 +212,14 @@ export default function VersionCenterPage({ notify }: { notify: Notify }): React
     if (!r.ok) notify('err', r.error || '取消失败')
   }
 
-  const statuses = result?.statuses ?? null
-  const upgradable = statuses?.filter((s) => s.state === 'upgradable').length ?? 0
+  const showHidden = catalog?.showHidden ?? false
+  const statusById = new Map((result?.statuses ?? []).map((s) => [s.id, s]))
+  // 行以目录为准（能显示"未检查"的占位行）；目录还没读到时退回状态列表
+  const rows =
+    catalog?.entries.filter((e) => showHidden || e.visible).map((e) => ({ id: e.id, entry: e, status: statusById.get(e.id) })) ??
+    (result?.statuses ?? []).map((s) => ({ id: s.id, entry: null, status: s }))
+  const upgradable = rows.filter((r) => r.status?.state === 'upgradable').length
+  const hiddenCount = catalog?.hiddenCount ?? 0
 
   return (
     <div>
@@ -188,32 +234,69 @@ export default function VersionCenterPage({ notify }: { notify: Notify }): React
             '全部检查'
           )}
         </button>
+        {hiddenCount > 0 && (
+          <button className="btn" onClick={() => void toggleShowHidden()} title="没检测到对应工具的条目默认不显示，点这里可以看全部">
+            {showHidden ? '只看已检测到的' : `显示全部（还有 ${hiddenCount} 个未检测到）`}
+          </button>
+        )}
+        {showHidden && hiddenCount === 0 && catalog?.degraded && (
+          <span className="hint">暂时读不到工具列表，已按「显示全部」展示</span>
+        )}
         <span className="hint">
           {result?.ts ? `上次检查：${new Date(result.ts).toLocaleString()}${result.stale ? '（缓存）' : ''}` : '尚未检查'}
-          {statuses ? ` · 共 ${statuses.length} 项 · 可升级 ${upgradable} 项` : ''}
+          {` · 共 ${rows.length} 项 · 可升级 ${upgradable} 项`}
         </span>
       </div>
+      {catalog?.degraded && (
+        <div className="banner warn">
+          暂时读不到已装工具列表（{catalog.reason || '注册表不可用'}），下面显示的是全部条目，可能包含这台机器上没装的工具。
+        </div>
+      )}
 
       <div className="card">
         <h3>Agent Harness 版本</h3>
-        {!statuses && <div className="hint">检查中…</div>}
-        {statuses?.map((s) => {
-          const job = jobs[s.id]
+        <div className="hint">
+          只显示这台机器上检测到的工具；没检测到的默认藏起来（点上面的「显示全部」能看）。想让某条一直在，点它的「固定显示」。
+        </div>
+        {!catalog && !result && <div className="hint">检查中…</div>}
+        {rows.map(({ id, entry, status: s }) => {
+          const job = jobs[id]
           const busy = job?.status === 'running'
-          const canUpdate = s.state === 'upgradable' || s.channelKind === 'native'
+          const canUpdate = s ? s.state === 'upgradable' || s.channelKind === 'native' : false
+          const kind = s?.channelKind ?? entry?.channelKind ?? 'arp'
           return (
-            <div key={s.id} className="vc-row">
-              <span className="vc-name">{s.name}</span>
-              <span className="tag">{KIND_LABEL[s.channelKind]}</span>
-              <span className="vc-ver">{s.installed ?? '?'}</span>
-              <span className="vc-arrow">→</span>
-              <span className="vc-ver">{s.latest ?? (s.channelKind === 'native' ? '由自带更新器探测' : '未知')}</span>
-              <span className={`badge ${STATE_BADGE[s.state].cls}`}>{STATE_BADGE[s.state].label}</span>
+            <div key={id} className="vc-row">
+              <span className="vc-name">{s?.name ?? entry?.name ?? id}</span>
+              <span className="tag">{KIND_LABEL[kind]}</span>
+              {s ? (
+                <>
+                  <span className="vc-ver">{s.installed ?? '?'}</span>
+                  <span className="vc-arrow">→</span>
+                  <span className="vc-ver">{s.latest ?? (s.channelKind === 'native' ? '由自带更新器探测' : '未知')}</span>
+                  <span className={`badge ${STATE_BADGE[s.state].cls}`}>{STATE_BADGE[s.state].label}</span>
+                </>
+              ) : (
+                <>
+                  <span className="vc-ver">—</span>
+                  <span className="vc-arrow">→</span>
+                  <span className="vc-ver">未检查</span>
+                  <span className="badge muted">… 未检查</span>
+                </>
+              )}
               <span className="vc-actions">
-                <button className="btn small" disabled={rowChecking[s.id] || checking} onClick={() => void checkOne(s.id)}>
-                  {rowChecking[s.id] ? '检查中…' : '检查'}
+                {entry && (
+                  <button
+                    className="btn small"
+                    title={entry.pinned ? '取消后，没检测到对应工具时这条会重新隐藏' : '没检测到对应工具时也一直显示（比如装在 WSL 或临时卸载了）'}
+                    onClick={() => void togglePin(id, !entry.pinned)}
+                  >
+                    {entry.pinned ? '📌 已固定' : '固定显示'}
+                  </button>
+                )}
+                <button className="btn small" disabled={rowChecking[id] || checking} onClick={() => void checkOne(id)}>
+                  {rowChecking[id] ? '检查中…' : '检查'}
                 </button>
-                {s.channelKind === 'arp' ? (
+                {kind === 'arp' ? (
                   <button className="btn small" disabled title="无自动升级通道，请手动更新">
                     手动
                   </button>
@@ -222,27 +305,30 @@ export default function VersionCenterPage({ notify }: { notify: Notify }): React
                     className="btn small primary"
                     disabled={busy}
                     title={
-                      s.channelKind === 'native'
+                      kind === 'native'
                         ? '调用其自带更新器'
-                        : s.channelKind === 'github'
+                        : kind === 'github'
                           ? '下载 GitHub 源码包并重建（约需数分钟，旧目录自动备份）'
                           : undefined
                     }
-                    onClick={() => void requestUpdate(s.id)}
+                    onClick={() => void requestUpdate(id)}
                   >
-                    {busy ? '更新中…' : s.channelKind === 'native' ? '更新（自带更新器）' : '一键更新'}
+                    {busy ? '更新中…' : kind === 'native' ? '更新（自带更新器）' : '一键更新'}
                   </button>
                 ) : null}
               </span>
-              {s.hint && <div className="vc-note">ⓘ {s.hint}</div>}
-              {s.note && <div className="vc-note">{s.note}</div>}
+              {entry && !entry.detected && (
+                <div className="vc-note">ⓘ 这台机器上没检测到对应工具{entry.pinned ? '（你固定显示了它）' : ''}</div>
+              )}
+              {(s?.hint ?? entry?.hint) && <div className="vc-note">ⓘ {s?.hint ?? entry?.hint}</div>}
+              {s?.note && <div className="vc-note">{s.note}</div>}
               {job && (
                 <div className="vc-logwrap">
-                  <pre className="vc-log" ref={(el) => setLogRef(s.id, el)}>
+                  <pre className="vc-log" ref={(el) => setLogRef(id, el)}>
                     {job.log.join('\n') || '等待输出…'}
                   </pre>
                   {busy && (
-                    <button className="btn small danger" onClick={() => void cancelJob(s.id)}>
+                    <button className="btn small danger" onClick={() => void cancelJob(id)}>
                       取消
                     </button>
                   )}

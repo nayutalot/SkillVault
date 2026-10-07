@@ -4,12 +4,12 @@ import { describe, expect, it } from 'vitest'
 import { agentIncludes, defaultRegistry, parseRegistry, REGISTRY_VERSION } from '../src/shared/registry'
 
 describe('parseRegistry', () => {
-  it('解析默认 registry（v2，zcode 双端带 agentsDir）', () => {
+  it('解析默认 registry（v3，zcode 双端带 agentsDir）', () => {
     const r = parseRegistry(JSON.stringify(defaultRegistry()))
     expect(r.ok).toBe(true)
     if (r.ok) {
       expect(r.registry.version).toBe(REGISTRY_VERSION)
-      expect(r.registry.version).toBe(2)
+      expect(r.registry.version).toBe(3)
       expect(r.registry.agents).toHaveLength(4)
       const wsl = r.registry.agents.find((a) => a.name === 'zcode-wsl')
       expect(wsl?.platform).toBe('linux')
@@ -24,7 +24,7 @@ describe('parseRegistry', () => {
     }
   })
 
-  it('v1 文件可读（向后兼容）：agentsDir 缺省 undefined，归一化为 version 2', () => {
+  it('v1 文件可读（向后兼容）：agentsDir 缺省 undefined，归一化为 version 3', () => {
     const v1 = {
       version: 1,
       agents: [{ name: 'legacy', platform: 'linux', skillsDir: '/x', include: ['*'] }]
@@ -32,7 +32,7 @@ describe('parseRegistry', () => {
     const r = parseRegistry(JSON.stringify(v1))
     expect(r.ok).toBe(true)
     if (r.ok) {
-      expect(r.registry.version).toBe(2)
+      expect(r.registry.version).toBe(3)
       expect(r.registry.agents[0].name).toBe('legacy')
       expect(r.registry.agents[0].agentsDir).toBeUndefined()
     }
@@ -61,8 +61,8 @@ describe('parseRegistry', () => {
     if (!r.ok) expect(r.error).toContain('JSON')
   })
 
-  it('拒绝 v1/v2 以外的 version', () => {
-    const r = parseRegistry(JSON.stringify({ version: 3, agents: [] }))
+  it('拒绝 v1/v2/v3 以外的 version', () => {
+    const r = parseRegistry(JSON.stringify({ version: 4, agents: [] }))
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error).toContain('version')
   })

@@ -41,13 +41,16 @@ export default function DoctorPage({ notify }: { notify: Notify }): React.JSX.El
   return (
     <div>
       <div className="toolbar">
-        <button className="btn" onClick={() => void load()}>
-          重新体检
+        <button className="btn primary" onClick={() => void load()}>
+          重新检查
         </button>
       </div>
       <div className="card">
-        <h3>体检项</h3>
-        {!items && <div className="hint">检查中…</div>}
+        <h3>检查结果</h3>
+        <p className="hint">
+          这里检查技能库、各个 Agent 的位置、WSL 那一侧有没有问题。能自动修的会给出「一键修复」，不能自动修的会说明原因，按提示处理即可。
+        </p>
+        {!items && <div className="hint">正在检查…</div>}
         {items && items.length === 0 && <div className="banner ok">一切正常，没有发现问题。</div>}
         {items?.map((it) => (
           <div key={it.id} className={`doctor-item sev-${it.severity}`}>

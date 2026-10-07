@@ -64,20 +64,20 @@ function MemBar({ label, usedKb, totalKb }: { label: string; usedKb: number | nu
 
 /** 发行版卡内统计区（stats 为 null 时给占位不报错） */
 function StatsView({ stats }: { stats: WslDistroStats | null }): React.JSX.Element {
-  if (!stats) return <div className="hint">指标不可用（发行版可能刚启动或读取超时）</div>
+  if (!stats) return <div className="hint">暂时读不到资源占用（子系统可能刚启动或读取超时），稍后刷新再看</div>
   // 任务管理器口径的「已用内存」= total - available
   const memUsed = stats.memTotalKb != null && stats.memAvailKb != null ? stats.memTotalKb - stats.memAvailKb : null
   return (
     <div className="wsl-stats">
       <MemBar label="内存" usedKb={memUsed} totalKb={stats.memTotalKb} />
       <div className="wsl-meter-row">
-        <span className="wsl-meter-label">负载</span>
+        <span className="wsl-meter-label">系统负载</span>
         <span className="wsl-meter-value">loadavg {stats.load1 == null ? '?' : stats.load1.toFixed(2)}</span>
       </div>
-      <MemBar label="磁盘(/)" usedKb={stats.diskUsed ? parseSizeToKb(stats.diskUsed) : null} totalKb={stats.diskTotal ? parseSizeToKb(stats.diskTotal) : null} />
+      <MemBar label="磁盘(/) " usedKb={stats.diskUsed ? parseSizeToKb(stats.diskUsed) : null} totalKb={stats.diskTotal ? parseSizeToKb(stats.diskTotal) : null} />
       <div className="wsl-meter-row">
-        <span className="wsl-meter-label">运行</span>
-        <span className="wsl-meter-value">已运行 {fmtUptime(stats.uptimeSec)} · 磁盘 {stats.diskPct == null ? '?' : `${stats.diskPct}%`}</span>
+        <span className="wsl-meter-label">已运行</span>
+        <span className="wsl-meter-value">{fmtUptime(stats.uptimeSec)} · 磁盘已用 {stats.diskPct == null ? '?' : `${stats.diskPct}%`}</span>
       </div>
     </div>
   )
@@ -136,10 +136,10 @@ export default function WslPage({ notify }: { notify: Notify }): React.JSX.Eleme
       setConfirm(null)
       const r = await window.api.wslAction('shutdownAll')
       if (!r.ok) {
-        notify('err', r.error || 'wsl --shutdown 失败')
+        notify('err', r.error || '关闭失败')
         return
       }
-      notify('ok', '已执行 wsl --shutdown')
+      notify('ok', '已关闭所有 Linux 子系统')
       void load()
       return
     }
@@ -150,7 +150,7 @@ export default function WslPage({ notify }: { notify: Notify }): React.JSX.Eleme
       notify('err', r.error || '操作失败')
       return
     }
-    notify('ok', c.action === 'terminate' ? `已终止 ${c.name}` : `已发出启动指令：${c.name}`)
+    notify('ok', c.action === 'terminate' ? `已终止 ${c.name}` : `正在启动 ${c.name}…`)
     void load()
   }
 
@@ -174,28 +174,28 @@ export default function WslPage({ notify }: { notify: Notify }): React.JSX.Eleme
         </button>
         <label className="hint wsl-toggle">
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-          自动刷新（10 秒）
+          每 10 秒自动刷新
         </label>
         <button className="btn small danger" onClick={() => setConfirm({ action: 'shutdownAll', stage: 1 })}>
-          关机全部（wsl --shutdown）
+          关闭所有 Linux 子系统
         </button>
       </div>
 
       {/* 主机卡：vmmemWSL 内存 + 发行版计数 */}
       <div className="card wsl-host-card">
-        <h3>WSL 虚拟机（宿主侧）</h3>
+        <h3>Linux 子系统共用的虚拟机（运行在你的 Windows 上）</h3>
         <div className="wsl-meter-row">
-          <span className="wsl-meter-label">vmmem 内存</span>
+          <span className="wsl-meter-label">已用内存</span>
           <div className="meter">
             <div className={`meter-fill ${hostPct == null ? 'muted' : barCls(hostPct)}`} style={{ width: `${hostPct ?? 0}%` }} />
           </div>
           <span className="wsl-meter-value">
-            {data?.host ? `${data.host.name} · ${(data.host.wsBytes / MB).toFixed(0)} MB` : 'vmmemWSL 进程未运行（WSL 空闲或已关闭）'}
-            <span className="hint">（满刻度参照 {HOST_VM_SCALE_MB / 1024} GB）</span>
+            {data?.host ? `${data.host.name} · ${(data.host.wsBytes / MB).toFixed(0)} MB` : '当前没有 Linux 子系统在运行（内存占用为 0）'}
+            <span className="hint">（进度条按 {HOST_VM_SCALE_MB / 1024} GB 满格估算）</span>
           </span>
         </div>
         <div className="hint">
-          发行版：{runningCount} 运行 / {distros.length} 总数
+          共 {distros.length} 个 Linux 子系统，其中 {runningCount} 个正在运行
           {data?.error ? ` · ${data.error}` : ''}
         </div>
       </div>
@@ -212,11 +212,11 @@ export default function WslPage({ notify }: { notify: Notify }): React.JSX.Eleme
               </span>
               <span className="tag">WSL {d.version}</span>
             </div>
-            {d.managedByDocker && <div className="hint">（由 Docker Desktop 管理）</div>}
+            {d.managedByDocker && <div className="hint">（由 Docker Desktop 管理，本页不改动它）</div>}
             {d.state === 'Running' && !d.managedByDocker && <StatsView stats={d.stats} />}
-            {d.state === 'Running' && d.managedByDocker && <div className="hint">不读取指标，避免干扰 Docker Desktop。</div>}
-            {d.state === 'Stopped' && <div className="hint">已停止（不读取指标，也绝不因此拉起发行版）</div>}
-            {d.state === 'Other' && <div className="hint">过渡态（Installing/Converting 等），操作请稍候重试。</div>}
+            {d.state === 'Running' && d.managedByDocker && <div className="hint">不读取它的资源占用，避免影响 Docker Desktop。</div>}
+            {d.state === 'Stopped' && <div className="hint">已停止。这里只显示状态，不会为了看数据把它启动起来。</div>}
+            {d.state === 'Other' && <div className="hint">正在安装/转换等过程中，稍后刷新再看。</div>}
             {d.statsError && <div className="hint err-text">读取失败：{d.statsError}</div>}
             <div className="wsl-card-actions">
               {d.state === 'Stopped' && (
@@ -230,15 +230,15 @@ export default function WslPage({ notify }: { notify: Notify }): React.JSX.Eleme
             </div>
           </div>
         ))}
-        {distros.length === 0 && <div className="card empty">未检测到任何 WSL 发行版（wsl -l -v 无输出）。</div>}
+        {distros.length === 0 && <div className="card empty">没有检测到任何 Linux 子系统（WSL）。</div>}
       </div>
 
       <div className="card">
         <h3>说明</h3>
         <p className="hint">
-          运行中发行版的指标通过一次 <code>wsl -d &lt;name&gt; -e sh -c …</code> 复合读取 /proc（meminfo、loadavg、df、uptime），
-          已停止的发行版不会被读取或启动；docker-desktop 由 Docker Desktop 管理只显示状态。
-          「终止」= wsl --terminate；「启动」= wsl -d &lt;name&gt; -e true；「关机全部」= wsl --shutdown（会影响所有发行版）。
+          运行中的子系统，程序会进去一次性读取内存、负载、磁盘和运行时长；已停止的子系统不会被读取，更不会被自动启动。
+          由 Docker Desktop 管理的子系统只显示状态。
+          「终止」= 立刻结束这个子系统里的所有程序（文件不受影响）；「启动」= 把它开起来；「关闭所有 Linux 子系统」= 全部关掉。
         </p>
       </div>
 
@@ -248,21 +248,25 @@ export default function WslPage({ notify }: { notify: Notify }): React.JSX.Eleme
           <div className="menu" onClick={(e) => e.stopPropagation()}>
             {confirm.action === 'shutdownAll' ? (
               <>
-                <div className="menu-title">{confirm.stage === 1 ? '确认关闭全部 WSL？' : '再次确认：立即执行 wsl --shutdown？'}</div>
+                <div className="menu-title">
+                  {confirm.stage === 1 ? '确定关闭所有 Linux 子系统吗？' : '最后确认：立刻关闭全部？'}
+                </div>
                 <div className="menu-note">
-                  会关闭所有发行版，包括正在进行的 WSL 操作。
+                  所有子系统里的程序都会被结束，正在进行的操作会中断（文件不受影响）。
                   {confirm.stage === 2 ? ' 这是最后一次确认，点击后立即执行。' : ''}
                 </div>
               </>
             ) : confirm.action === 'terminate' ? (
               <>
-                <div className="menu-title">确认终止 {confirm.name}？</div>
-                <div className="menu-note">将执行 wsl --terminate {confirm.name}，该发行版内所有进程会被结束（文件不受影响）。</div>
+                <div className="menu-title">确定终止 {confirm.name}？</div>
+                <div className="menu-note">
+                  这个子系统里正在运行的所有程序会被立刻结束（文件不受影响）。之后可以再点「启动」把它开回来。
+                </div>
               </>
             ) : (
               <>
-                <div className="menu-title">启动发行版 {confirm.name}？</div>
-                <div className="menu-note">将执行 wsl -d {confirm.name} -e true 拉起该发行版。</div>
+                <div className="menu-title">启动 {confirm.name}？</div>
+                <div className="menu-note">会把这个 Linux 子系统启动起来（需要几秒到几十秒）。</div>
               </>
             )}
             <div className="drawer-actions">

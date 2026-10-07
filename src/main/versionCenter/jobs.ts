@@ -49,6 +49,11 @@ export type VCDeps = {
   cacheFile?: string | null
   /** DeepSeek Harness 本体安装目录（github 通道；缺省用 DEEPSEEK_DEFAULT_ROOT） */
   deepseekRoot?: string
+  /**
+   * 本轮只检查这些条目 id（版本中心可见性过滤：没检测到对应工具的条目默认不查，省时间也少弹失败）。
+   * 缺省/undefined/null = 全部条目（单测与"显示全部"用）。
+   */
+  visibleIds?: string[] | null
 }
 
 // ---------- 缓存（userData/version-cache.json，{ ts, statuses }） ----------
@@ -231,16 +236,19 @@ async function checkOneSafe(e: CatalogEntry, ctx: CheckCtx): Promise<VersionStat
 
 // ---------- checkAll / checkSingle ----------
 
-/** 全量检查：并行、独立失败；全部失败回落缓存（stale），否则写缓存返回 */
+/** 全量检查：并行、独立失败；全部失败回落缓存（stale），否则写缓存返回。
+ *  可见性过滤由调用方（IPC 层按注册表 + pin 规则算出 visibleIds）注入；visibleIds 为空数组时不做任何检查，
+ *  也绝不触发"全部失败回落缓存"（0 条可见 ≠ 检查全挂，否则会拿旧缓存冒充本次结果）。 */
 export async function runVersionCheckAll(deps: VCDeps = {}): Promise<CheckAllResult> {
   const ctx = makeCtx(deps)
   const now = deps.now ?? Date.now
-  const statuses = await Promise.all(VERSION_CATALOG.map((e) => checkOneSafe(e, ctx)))
+  const entries = deps.visibleIds ? VERSION_CATALOG.filter((e) => deps.visibleIds!.includes(e.id)) : VERSION_CATALOG
+  const statuses = await Promise.all(entries.map((e) => checkOneSafe(e, ctx)))
   const failedCount = statuses.filter((s) => s.state === 'check-failed').length
-  if (failedCount === statuses.length) {
+  if (statuses.length > 0 && failedCount === statuses.length) {
     const cached = deps.cacheFile ? readVersionCache(deps.cacheFile) : null
     if (cached) return { ...cached, stale: true, reason: '实时检查全部失败，已回落上次缓存' }
-  } else if (deps.cacheFile) {
+  } else if (deps.cacheFile && statuses.length > 0) {
     writeVersionCache(deps.cacheFile, { ts: now(), statuses })
   }
   return { ts: now(), statuses, stale: false }

@@ -64,7 +64,7 @@ export default function DockerPage({ notify }: { notify: Notify }): React.JSX.El
       notify('err', r.error || '启动失败')
       return
     }
-    notify('ok', r.data.hint || 'Docker Desktop 已拉起')
+    notify('ok', r.data.hint || '已开始启动 Docker Desktop，等 10-30 秒后点「刷新」')
   }
 
   const openLogs = async (name: string): Promise<void> => {
@@ -89,7 +89,7 @@ export default function DockerPage({ notify }: { notify: Notify }): React.JSX.El
         notify('err', r.error || '操作失败')
         return
       }
-      notify('ok', `容器 ${c.name} ${ACTION_LABEL[c.action]}完成`)
+      notify('ok', `容器 ${c.name} 已${ACTION_LABEL[c.action]}`)
     } else {
       const r = await window.api.dockerImageRemove(c.id)
       if (!r.ok) {
@@ -118,32 +118,32 @@ export default function DockerPage({ notify }: { notify: Notify }): React.JSX.El
       </div>
 
       {/* 引擎状态横幅：在线给版本，未运行给 pipe 错误摘要 + 拉起按钮 */}
-      {!info && <div className="banner warn">正在检测 Docker 引擎…</div>}
+      {!info && <div className="banner warn">正在检查 Docker 是否在运行…</div>}
       {info?.state === 'online' && (
         <div className="banner ok">
-          Docker 引擎在线 · Client {info.clientVersion ?? '?'} · Server {info.serverVersion ?? '?'}
+          Docker 正在运行 · 客户端 {info.clientVersion ?? '?'} · 服务端 {info.serverVersion ?? '?'}
         </div>
       )}
       {engineDown && (
         <div className="banner err">
-          <div>Docker 引擎未运行：{info.error}</div>
+          <div>Docker 没有在运行：{info.error}</div>
           <div style={{ marginTop: 8, display: 'flex', gap: 10, alignItems: 'center' }}>
             <button className="btn small primary" disabled={startingEngine} onClick={() => void startEngine()}>
               {startingEngine ? '启动中…' : '启动 Docker Desktop'}
             </button>
-            <span>引擎启动约需 10-30 秒，稍后点上方「刷新」。</span>
+            <span>启动大约要 10-30 秒，稍后点上方「刷新」再看。</span>
           </div>
         </div>
       )}
-      {info?.state === 'error' && <div className="banner err">docker 命令失败：{info.error}</div>}
+      {info?.state === 'error' && <div className="banner err">Docker 命令执行失败：{info.error}</div>}
 
       {/* 容器表：引擎未运行时显示占位，不报错 */}
       <div className="card">
-        <h3>容器</h3>
+        <h3>容器（正在运行的程序）</h3>
         {engineDown ? (
-          <div className="empty">引擎未运行，容器列表暂不可用。启动 Docker Desktop 后点「刷新」。</div>
+          <div className="empty">Docker 没在运行，暂时看不到容器。启动 Docker Desktop 后点「刷新」。</div>
         ) : containers.length === 0 ? (
-          <div className="empty">还没有任何容器（docker run 或 Docker Desktop 拉起后这里会出现）</div>
+          <div className="empty">还没有容器（用 docker run 或 Docker Desktop 创建后会出现在这里）</div>
         ) : (
           <table className="table docker-table">
             <thead>
@@ -151,7 +151,7 @@ export default function DockerPage({ notify }: { notify: Notify }): React.JSX.El
                 <th>名称</th>
                 <th>镜像</th>
                 <th>状态</th>
-                <th>status</th>
+                <th>运行情况</th>
                 <th>端口</th>
                 <th>CPU</th>
                 <th>内存</th>
@@ -211,11 +211,11 @@ export default function DockerPage({ notify }: { notify: Notify }): React.JSX.El
 
       {/* 镜像表 */}
       <div className="card">
-        <h3>镜像</h3>
+        <h3>镜像（容器的模板）</h3>
         {engineDown ? (
-          <div className="empty">引擎未运行，镜像列表暂不可用。</div>
+          <div className="empty">Docker 没在运行，暂时看不到镜像。</div>
         ) : images.length === 0 ? (
-          <div className="empty">还没有任何镜像（docker pull 或 Docker Desktop 拉取后这里会出现）</div>
+          <div className="empty">还没有镜像（用 docker pull 或 Docker Desktop 下载后会出现在这里）</div>
         ) : (
           <table className="table docker-table">
             <thead>
@@ -255,7 +255,7 @@ export default function DockerPage({ notify }: { notify: Notify }): React.JSX.El
           <div className="drawer-mask" onClick={() => setLogs(null)} />
           <div className="drawer">
             <div className="drawer-head">
-              <h3>日志 · {logs.name}</h3>
+              <h3>{logs.name} 的运行日志</h3>
               <button className="btn small" onClick={() => setLogs(null)}>
                 关闭
               </button>
@@ -264,7 +264,7 @@ export default function DockerPage({ notify }: { notify: Notify }): React.JSX.El
               <button className="btn small" disabled={logs.loading} onClick={() => void refreshLogs()}>
                 {logs.loading ? '加载中…' : '刷新'}
               </button>
-              <span className="hint">最近 200 行</span>
+              <span className="hint">只显示最近 200 行</span>
             </div>
             <pre className="vc-log dock-log">{logs.text || (logs.loading ? '加载中…' : '（无日志输出）')}</pre>
           </div>
@@ -301,14 +301,14 @@ const ACTION_LABEL: Record<DockerActionName, string> = {
 
 function confirmTitle(c: ConfirmAction): string {
   return c.kind === 'image'
-    ? `确认删除镜像 ${c.id.slice(0, 12)}`
-    : `确认${ACTION_LABEL[c.action]}容器 ${c.name}`
+    ? `确定删除镜像 ${c.id.slice(0, 12)}？`
+    : `确定${ACTION_LABEL[c.action]}容器 ${c.name}？`
 }
 
 function confirmNote(c: ConfirmAction): string {
-  if (c.kind === 'image') return '将执行 docker rmi，删除该镜像（未被容器引用时才可成功）。'
-  if (c.action === 'remove') return '将执行 docker rm -f，强制移除容器（运行中也会先强制终止），不可恢复。'
-  if (c.action === 'stop') return '将执行 docker stop，优雅停止该容器。'
-  if (c.action === 'restart') return '将执行 docker restart，重启该容器。'
-  return '将执行 docker start，启动该容器。'
+  if (c.kind === 'image') return '这个镜像会被删除（还有容器在用它时删不掉）。已经用它创建过的容器不受影响。'
+  if (c.action === 'remove') return '容器会被强制删除，正在运行也会先被终止，容器里没保存的数据会一起丢失，无法恢复。'
+  if (c.action === 'stop') return '容器会被停止（相当于关掉这个程序），里面的数据保留，之后还能再启动。'
+  if (c.action === 'restart') return '容器会被重新启动，短暂中断后恢复。'
+  return '容器会被启动。'
 }

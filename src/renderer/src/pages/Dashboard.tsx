@@ -13,15 +13,27 @@ const SYMBOL: Record<LinkState, string> = {
 }
 
 const STATE_LABEL: Record<LinkState, string> = {
-  linked: '已链接',
-  missing: '未链接',
-  'wrong-target': '链接目标错误',
-  'real-dir': '真实目录冲突',
-  'vault-missing': 'vault 缺失'
+  linked: '已建快捷方式',
+  missing: '还没建快捷方式',
+  'wrong-target': '快捷方式指向了别处',
+  'real-dir': '这里是真实文件（未入库）',
+  'vault-missing': '库里找不到'
 }
+
+/** 图例（白话：符号含义 + 该状态意味着什么） */
+const LEGEND =
+  '✓ 已建快捷方式（真正的文件在库里） · ✗ 还没建快捷方式 · ~ 快捷方式指向了别处 · ! 这里是真实文件（还没入库） · ∅ 库里找不到这个技能 · 点技能名看详情'
 
 function joinSkillDir(agent: AgentScan, skill: string): string {
   return agent.platform === 'windows' ? `${agent.skillsDir}\\${skill}` : `${agent.skillsDir}/${skill}`
+}
+
+/**
+ * 矩阵列头用短名：20 个 agent 并排时 "-win/-wsl/generic-" 后缀全是噪音且撑宽表格，
+ * 平台信息已有 th-sub 一行展示，这里把 claude-win / generic-qoderwork-win 缩成 claude / qoderwork
+ */
+function shortAgentName(name: string): string {
+  return name.replace(/^generic-/, '').replace(/-(win|wsl)$/, '')
 }
 
 type PathRow = {
@@ -130,7 +142,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
     setSyncRes(r.data)
     notify(
       r.data.conflicts.length ? 'err' : 'ok',
-      r.data.conflicts.length ? `同步完成，但有 ${r.data.conflicts.length} 个冲突` : '双侧同步完成'
+      r.data.conflicts.length ? `同步完成，但有 ${r.data.conflicts.length} 个冲突需要处理` : 'Windows 和 WSL 都已同步'
     )
   }
 
@@ -168,18 +180,18 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
     if (!detail || !report) return []
     const rows: PathRow[] = []
     if (settings?.vaultPath) {
-      rows.push({ label: 'vault 真身目录', path: `${settings.vaultPath}\\skills\\${detail}` })
+      rows.push({ label: '技能库里的真身（真正的文件在这）', path: `${settings.vaultPath}\\skills\\${detail}` })
     }
     for (const a of report.agents.filter((x) => x.platform === 'windows')) {
       rows.push({
-        label: `Windows agent ${a.name}`,
+        label: `Windows Agent ${a.name}`,
         path: joinSkillDir(a, detail),
         state: report.vaultOk ? a.links[detail] ?? 'missing' : 'vault-missing'
       })
     }
-    rows.push({ label: 'WSL vault', path: wslVaultSkillDir(detail), wsl: true })
+    rows.push({ label: 'WSL 技能库', path: wslVaultSkillDir(detail), wsl: true })
     for (const a of report.agents.filter((x) => x.platform === 'linux')) {
-      rows.push({ label: `WSL agent ${a.name}`, path: joinSkillDir(a, detail) })
+      rows.push({ label: `WSL Agent ${a.name}`, path: joinSkillDir(a, detail) })
     }
     return rows
   }
@@ -209,8 +221,8 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
     notify(
       r.data.reason ? 'err' : 'ok',
       r.data.reason
-        ? `VS Code 未能启动（${r.data.reason}），已改用系统默认程序打开 SKILL.md`
-        : '未解析到 VS Code，已用系统默认程序打开 SKILL.md（fallback）'
+        ? `VS Code 没能启动（${r.data.reason}），已改用系统默认程序打开 SKILL.md`
+        : '没找到 VS Code，已改用系统默认程序打开 SKILL.md'
     )
   }
 
@@ -239,8 +251,8 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
       return
     }
     setRepairRes({ agent: a.name, steps: r.data.steps, state: r.data.state })
-    if (r.data.state === 'linked') notify('ok', a.name + ' agentsDir 已修复（' + (r.data.note ?? '已链接') + '）')
-    else notify('err', '修复后仍未链接（' + r.data.state + '），详见步骤日志')
+    if (r.data.state === 'linked') notify('ok', a.name + ' 的子智能体目录已重建（' + (r.data.note ?? '已建好快捷方式') + '）')
+    else notify('err', '重建后仍未生效（当前状态：' + r.data.state + '），详见步骤日志')
     await load()
   }
 
@@ -258,8 +270,8 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
     notify(
       r.data.reason ? 'err' : 'ok',
       r.data.reason
-        ? `VS Code 未能启动（${r.data.reason}），已改用系统默认程序打开`
-        : '未解析到 VS Code，已用系统默认程序打开（fallback）'
+        ? `VS Code 没能启动（${r.data.reason}），已改用系统默认程序打开`
+        : '没找到 VS Code，已改用系统默认程序打开'
     )
   }
 
@@ -299,16 +311,15 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
 
       {report && !report.vaultOk && (
         <div className="banner err">
-          vault 不可用（默认路径（用户目录下 SkillVault）不存在或不是 git 仓库）。请先完成迁移，或到设置页检查路径。
+          技能库（默认在用户目录下的 SkillVault 文件夹）找不到，或者它不是一个有效的仓库。请先完成迁移，或到设置页检查路径。
         </div>
       )}
       {wslPhase === 'pending' && (
-        <div className="banner warn">WSL 检测中…（矩阵已先按 Windows 侧渲染，WSL 列与描述稍后并入）</div>
+        <div className="banner warn">正在读取 WSL 那一侧…（表格先按 Windows 的结果显示，WSL 的列稍后补上）</div>
       )}
       {wslPhase === 'stale' && (
         <div className="banner warn">
-          WSL companion 本次不可达（{wslReason}）。当前展示缓存 {wslCacheTs !== null ? fmtCacheTime(wslCacheTs) : '?'}{' '}
-          的扫描结果。
+          这次连不上 WSL，暂时用上次扫描的结果（{wslCacheTs !== null ? fmtCacheTime(wslCacheTs) : '?'}）显示，可能已经过时。
           <button className="btn small" onClick={() => report && void loadWsl(report)}>
             重试
           </button>
@@ -316,7 +327,8 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
       )}
       {wslPhase === 'unavailable' && (
         <div className="banner warn">
-          WSL 侧 companion 不可达（Ubuntu / /root/skill-vault），矩阵缺少 WSL 列{wslReason ? `：${wslReason}` : ''}。
+          读不到 WSL 那一侧（需要 Ubuntu 与 /root/skill-vault），表格里暂时没有 WSL 的列
+          {wslReason ? `：${wslReason}` : ''}。
           <button className="btn small" onClick={() => report && void loadWsl(report)}>
             重试
           </button>
@@ -324,8 +336,8 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
       )}
       {report && report.vaultOk && (
         <div className="banner ok">
-          vault 正常 · {report.skills.length} 个 skill · {report.agents.filter((a) => a.platform === 'windows').length} 个
-          Windows agent · {report.agents.filter((a) => a.platform === 'linux').length} 个 WSL agent
+          技能库正常 · 共 {report.skills.length} 个技能 · {report.agents.filter((a) => a.platform === 'windows').length} 个
+          Windows Agent · {report.agents.filter((a) => a.platform === 'linux').length} 个 WSL Agent
         </div>
       )}
 
@@ -335,8 +347,8 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
             <tr>
               <th>skill</th>
               {report?.agents.map((a) => (
-                <th key={a.name} title={a.skillsDir}>
-                  <div>{a.name}</div>
+                <th key={a.name} title={`${a.name} · ${a.skillsDir}`}>
+                  <div>{shortAgentName(a.name)}</div>
                   <div className="th-sub">{a.platform === 'windows' ? 'Windows' : 'WSL'}</div>
                 </th>
               ))}
@@ -346,7 +358,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
             {report?.skills.length === 0 && (
               <tr>
                 <td colSpan={1 + report.agents.length} className="empty">
-                  vault 中还没有 skill，请先到「导入」页迁移。
+                  技能库里还没有技能。到「导入」页把各个 Agent 的技能收进来。
                 </td>
               </tr>
             )}
@@ -388,23 +400,23 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
             ))}
           </tbody>
         </table>
-        <div className="legend">
-          ✓ 已链接 · ✗ 未链接 · ~ 目标错误 · ! 真实目录 · ∅ vault 缺失 · 点击 skill 名查看详情
-        </div>
+        <div className="legend">{LEGEND}</div>
       </div>
 
       {report && report.vaultOk && (
         <div className="card">
           <h3>子智能体</h3>
           {agentRows.length === 0 ? (
-            <div className="empty">registry 中还没有配置 agentsDir 的 agent（可在设置页为 agent 填写 agents 目录）。</div>
+            <div className="empty">
+              还没有哪个 Agent 填写了子智能体目录。到「设置」页给 Agent 填上子智能体目录，这些定义就会集中放进技能库。
+            </div>
           ) : (
             <table className="matrix agent-table">
               <thead>
                 <tr>
-                  <th>agent</th>
-                  <th>agentsDir 状态</th>
-                  <th>vault agents/*.md（点击查看）</th>
+                  <th>Agent</th>
+                  <th>这个位置的状态</th>
+                  <th>技能库里的子智能体文件（点击查看内容）</th>
                 </tr>
               </thead>
               <tbody>
@@ -438,7 +450,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                       </td>
                       <td>
                         {(a.agentFiles ?? []).length === 0 ? (
-                          <span className="skill-desc none">（vault agents/ 为空）</span>
+                          <span className="skill-desc none">（技能库里还没有子智能体文件）</span>
                         ) : (
                           (a.agentFiles ?? []).map((f) => (
                             <button key={f} className="btn small agent-file" onClick={() => void openAgentFile(f)}>
@@ -456,7 +468,8 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
           {repairRes && (
             <div className={`card ${repairRes.state === 'linked' ? '' : 'card-err'}`}>
               <h4>
-                agentsDir 修复日志：{repairRes.agent}（结果 {repairRes.state}）
+                子智能体目录重建日志：{repairRes.agent}（结果：
+                {STATE_LABEL[repairRes.state as LinkState] ?? repairRes.state}）
                 <button className="btn ghost small" onClick={() => setRepairRes(null)}>
                   关闭
                 </button>
@@ -465,7 +478,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
             </div>
           )}
           <div className="legend">
-            子智能体定义整目录链接到 vault agents/（Windows junction / WSL 相对 symlink）· 状态符号同上图例
+            子智能体定义都集中放在技能库里，各个 Agent 的位置只需要一个快捷方式指向它 · 状态符号含义见上方图例
           </div>
         </div>
       )}
@@ -484,7 +497,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                   void cellAction(() => window.api.setLink(menu.agent.name, menu.skill))
                 }
               >
-                {state === 'missing' ? '建立链接 → vault' : '修复链接（重建 → vault）'}
+                {state === 'missing' ? '建快捷方式（指向库里的文件）' : '修正快捷方式（重新指向库）'}
               </button>
             )}
             {(state === 'linked' || state === 'wrong-target') && (
@@ -492,7 +505,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                 className="btn danger"
                 onClick={() => void cellAction(() => window.api.removeLink(menu.agent.name, menu.skill))}
               >
-                解除链接
+                删除快捷方式
               </button>
             )}
             {(state === 'linked' || state === 'real-dir') && (
@@ -503,16 +516,16 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                   void window.api.openPath(joinSkillDir(menu.agent, menu.skill))
                 }}
               >
-                打开目录
+                打开这个文件夹
               </button>
             )}
             {state === 'real-dir' && (
               <div className="menu-note">
-                该位置是真实目录（非链接），建议动作：到「导入」页重新导入（先删除 vault 同名项再导入）。
+                这里放的是真实的技能文件，不是指向库的快捷方式，所以它和库里是两份。建议到「导入」页重新导入（先处理库里的同名项再导入）。
               </div>
             )}
             {state === 'vault-missing' && (
-              <div className="menu-note">vault 中缺少该 skill 目录，无法建立链接。</div>
+              <div className="menu-note">技能库里没有这个技能，所以没法建快捷方式。请先到「导入」页把它收进库里。</div>
             )}
             <button className="btn ghost" onClick={() => setMenu(null)}>
               关闭
@@ -537,7 +550,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
             </div>
 
             <div>
-              <div className="sec-title">链接状态（点击矩阵单元格可建链/修复）</div>
+              <div className="sec-title">每个 Agent 那边是什么状态（点表格里的格子可以建/修快捷方式）</div>
               <table className="linktable">
                 <tbody>
                   {['windows', 'linux'].map((plat) => {
@@ -567,11 +580,11 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                   })}
                 </tbody>
               </table>
-              <div className="legend">✓ 已链接 · ✗ 未链接 · ~ 目标错误 · ! 真实目录 · ∅ vault 缺失</div>
+              <div className="legend">{LEGEND}</div>
             </div>
 
             <div>
-              <div className="sec-title">所在目录</div>
+              <div className="sec-title">这些文件都在哪</div>
               {detailPaths().map((p) => (
                 <div className="path-row" key={p.label + p.path}>
                   <div className="path-main">
@@ -592,7 +605,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                         )
                       }
                     >
-                      资源管理器打开
+                      在文件夹中打开
                     </button>
                   )}
                 </div>
@@ -605,11 +618,11 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                 onClick={() =>
                   void openAction(
                     () => window.api.openSkillFolder(detail),
-                    '已在资源管理器中打开 vault 目录'
+                    '已在资源管理器中打开技能库目录'
                   )
                 }
               >
-                在资源管理器打开
+                在文件夹中打开
               </button>
               <button className="btn" onClick={() => void openMd()}>
                 VS Code 打开 SKILL.md
@@ -623,7 +636,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
         <div className="menu-mask" onClick={() => setAgentMenu(null)}>
           <div className="menu" onClick={(e) => e.stopPropagation()}>
             <div className="menu-title">
-              {agentMenu.name} / agentsDir — {STATE_LABEL[agentMenuState]}
+              {agentMenu.name} 的子智能体目录 — {STATE_LABEL[agentMenuState]}
             </div>
             <div className="menu-path">{agentMenu.agentsDir}</div>
             {agentMenu.platform === 'windows' ? (
@@ -635,7 +648,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                       void agentCellAction(() => window.api.setLink(agentMenu.name, '', 'agents'))
                     }
                   >
-                    {agentMenuState === 'missing' ? '建立整目录链接 → vault' : '修复链接（重建 → vault）'}
+                    {agentMenuState === 'missing' ? '建快捷方式（指向库里的子智能体目录）' : '修正快捷方式（重新指向库）'}
                   </button>
                 )}
                 {(agentMenuState === 'linked' || agentMenuState === 'wrong-target') && (
@@ -643,7 +656,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                     className="btn danger"
                     onClick={() => void agentCellAction(() => window.api.removeLink(agentMenu.name, '', 'agents'))}
                   >
-                    解除链接
+                    删除快捷方式
                   </button>
                 )}
                 {agentMenuState === 'linked' && (
@@ -654,23 +667,24 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                       void window.api.openAgentFolder()
                     }}
                   >
-                    打开 vault agents 目录
+                    打开技能库里的子智能体目录
                   </button>
                 )}
               </>
             ) : (
               <div className="menu-note">
-                WSL 侧建/解链请使用 companion：<code>skm agents-link --agent {agentMenu.name}</code>（体检页可检测 /mnt
-                式旧链接）。
+                WSL 这一侧的建/删快捷方式要在 WSL 里执行一条命令：
+                <code>skm agents-link --agent {agentMenu.name}</code>
+                （「体检」页可以查出 /mnt 形式的旧链接）。
               </div>
             )}
             {agentMenuState === 'real-dir' && (
               <div className="menu-note">
-                该位置是真实目录（非链接）。可关闭本窗后点行内「一键修复」，以 vault agents 为源重建硬链接共享目录。
+                这里放的是真实目录，不是指向库的快捷方式。关闭本窗口后点行内「一键修复」，程序会以技能库里的子智能体目录为准重建这个位置。
               </div>
             )}
             {agentMenuState === 'vault-missing' && (
-              <div className="menu-note">vault 中缺少 agents 目录，无法建立链接。</div>
+              <div className="menu-note">技能库里没有子智能体目录，所以没法建快捷方式。</div>
             )}
             <button className="btn ghost" onClick={() => setAgentMenu(null)}>
               关闭
@@ -682,12 +696,12 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
       {pendingRepair && (
         <div className="menu-mask" onClick={() => setPendingRepair(null)}>
           <div className="menu" onClick={(e) => e.stopPropagation()}>
-            <div className="menu-title">一键修复 {pendingRepair.name} / agentsDir</div>
+            <div className="menu-title">重建 {pendingRepair.name} 的子智能体目录</div>
             <div className="menu-path">{pendingRepair.agentsDir}</div>
             <div className="menu-note">
-              {'将重建 '}
+              {'会把 '}
               {pendingRepair.agentsDir}
-              {' 为指向 vault agents 的硬链接目录（ vault 为源，多余文件将移除）。多余 .md 会先移入 vault 同级 .trash-<ts> 目录，不直接删除。'}
+              {' 这个位置重建为与技能库一致的子智能体目录（以库里的 agents 为准）。库中没有的多余文件会先移到技能库同级的回收文件夹（.trash-<时间>），不会直接删除，需要时可以自己找回来。'}
             </div>
             <div className="drawer-actions">
               <button className="btn" onClick={() => setPendingRepair(null)}>
@@ -712,7 +726,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
             </div>
 
             <div>
-              <div className="sec-title">vault 绝对路径</div>
+              <div className="sec-title">文件在技能库里的完整路径</div>
               <div className="path-row">
                 <div className="path-main">
                   <div className="path-text">{agentDetail.info.path}</div>
@@ -724,7 +738,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
             </div>
 
             <div>
-              <div className="sec-title">内容预览（前 40 行{agentDetail.info.truncated ? '，已截断' : ''}）</div>
+              <div className="sec-title">内容预览（最多前 40 行{agentDetail.info.truncated ? '，后面还有内容未显示' : ''}）</div>
               <pre className="conflict">{agentDetail.info.preview}</pre>
             </div>
 
@@ -732,10 +746,10 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
               <button
                 className="btn primary"
                 onClick={() =>
-                  void openAction(() => window.api.openAgentFolder(), '已在资源管理器中打开 vault agents 目录')
+                  void openAction(() => window.api.openAgentFolder(), '已在资源管理器中打开技能库的子智能体目录')
                 }
               >
-                资源管理器打开
+                在文件夹中打开
               </button>
               <button className="btn" onClick={() => void openAgentMd()}>
                 VS Code 打开
@@ -758,7 +772,7 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
           ))}
           {syncRes.conflicts.length > 0 && (
             <div>
-              <h4>冲突（原样输出，绝不 force）</h4>
+              <h4>冲突的原始输出（程序不会强行覆盖，请按提示人工处理）</h4>
               {syncRes.conflicts.map((c, i) => (
                 <pre key={i} className="conflict">
                   {c}

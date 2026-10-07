@@ -1,13 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ApiHubAdapterId, ApiHubAdapterInfo, ApiHubCurrentResult, ApiHubProfileInput, ApiHubProfileView } from '../../../shared/types'
+import type {
+  ApiHubAdapterId,
+  ApiHubCatalogEntry,
+  ApiHubCatalogId,
+  ApiHubCurrentResult,
+  ApiHubCustomProviderView,
+  ApiHubProfileSaveInput,
+  ApiHubProfileView
+} from '../../../shared/types'
 import type { Notify } from '../App'
+import { ApiHubProvidersCard, ProviderPrefillPicker } from '../components/apihub-providers'
 
-/** 表单态：fields 直接承载适配器字段，apiKey 单独（留空 = 编辑时不改动） */
-type FormState = { id?: string; name: string; fields: Record<string, string>; apiKey: string }
+/** 表单态：fields 直接承载适配器字段，apiKey 单独（留空 = 编辑时不改动）；
+ *  keyFromProviderId = 用哪条自定义供应商的密钥（密钥不回显，保存时由主进程带入） */
+type FormState = {
+  id?: string
+  name: string
+  fields: Record<string, string>
+  apiKey: string
+  keyFromProviderId?: string
+  /** 一键填入后要提醒用户补的字段 / 需要确认的说明 */
+  prefillMissing: string[]
+  prefillNotes: string[]
+}
 
 /** 单适配器加载态 */
 type Sel = {
-  info: ApiHubAdapterInfo | null
+  info: ApiHubCatalogEntry | null
   profiles: ApiHubProfileView[]
   activeId: string | null
   current: ApiHubCurrentResult | null
@@ -23,33 +42,49 @@ function fileNameOf(p: string): string {
 }
 
 export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.Element {
-  const [adapters, setAdapters] = useState<ApiHubAdapterInfo[]>([])
-  const [sel, setSel] = useState<ApiHubAdapterId>('claude-cli')
+  const [adapters, setAdapters] = useState<ApiHubCatalogEntry[]>([])
+  const [catalogDegraded, setCatalogDegraded] = useState<string | null>(null)
+  const [sel, setSel] = useState<ApiHubCatalogId>('claude-cli')
   const [selData, setSelData] = useState<Sel>({ info: null, profiles: [], activeId: null, current: null })
   const [form, setForm] = useState<FormState | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [pending, setPending] = useState<{ kind: 'switch' | 'delete'; id: string } | null>(null)
   const [zcodeConfirm, setZcodeConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [providers, setProviders] = useState<ApiHubCustomProviderView[]>([])
+  const [saveAsProfile, setSaveAsProfile] = useState<ApiHubProfileView | null>(null)
   /** 最新请求获胜防护：快速切换选项卡时两次 loadSel 并发在飞，旧适配器的响应后到
    *  会把新选项卡的数据整体覆盖（界面高亮 B 但列表是 A 的档案，此时点「切换」会写错适配器） */
   const loadSeqRef = useRef(0)
 
-  const loadAdapters = useCallback(async (): Promise<ApiHubAdapterInfo[]> => {
-    const r = await window.api.apihubAdapters()
+  const loadAdapters = useCallback(async (): Promise<ApiHubCatalogEntry[]> => {
+    const r = await window.api.apihubCatalog()
     if (!r.ok) {
       notify('err', r.error || '读取适配器目录失败')
       return []
     }
     setAdapters(r.data.adapters)
+    setCatalogDegraded(r.data.degraded ? r.data.reason || '暂时读不到工具列表，先显示内置列表' : null)
     return r.data.adapters
   }, [notify])
 
+  const loadProviders = useCallback(async (): Promise<void> => {
+    const r = await window.api.apihubProvidersList()
+    if (r.ok) setProviders(r.data)
+  }, [])
+
   const loadSel = useCallback(
-    async (id: ApiHubAdapterId, info: ApiHubAdapterInfo | null): Promise<void> => {
+    async (id: ApiHubCatalogId, info: ApiHubCatalogEntry | null): Promise<void> => {
       const seq = ++loadSeqRef.current
-      const c = await window.api.apihubCurrent(id)
-      const p = await window.api.apihubProfiles(id)
+      // N/A 说明卡没有当前状态也没有档案：不去问主进程（否则只会换来一条无意义的错误提示）
+      if (info && !info.available) {
+        setSelData({ info, profiles: [], activeId: null, current: null })
+        return
+      }
+      // 已选适配器必然是"有实现"的（N/A 卡不渲染操作区），旧 preload 签名只认 ApiHubAdapterId，这里收窄
+      const adapterId = id as ApiHubAdapterId
+      const c = await window.api.apihubCurrent(adapterId)
+      const p = await window.api.apihubProfiles(adapterId)
       if (seq !== loadSeqRef.current) return // 已切到别的选项卡，本次结果作废
       if (!c.ok) {
         notify('err', c.error || '读取当前状态失败')
@@ -67,17 +102,19 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
   useEffect(() => {
     void (async () => {
       const list = await loadAdapters()
-      const first = list.find((a) => a.available)?.id ?? 'claude-cli'
+      await loadProviders()
+      const first = list.find((a) => a.available)?.id ?? list[0]?.id ?? 'claude-cli'
       setSel(first)
       await loadSel(first, list.find((a) => a.id === first) ?? null)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const switchTab = async (id: ApiHubAdapterId): Promise<void> => {
+  const switchTab = async (id: ApiHubCatalogId): Promise<void> => {
     setSel(id)
     setForm(null)
     setPending(null)
+    setSaveAsProfile(null)
     setShowAdvanced(false)
     await loadSel(id, adapters.find((a) => a.id === id) ?? null)
   }
@@ -93,7 +130,7 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
 
   const importCurrent = async (): Promise<void> => {
     setBusy(true)
-    const r = await window.api.apihubImport(sel)
+    const r = await window.api.apihubImport(sel as ApiHubAdapterId)
     setBusy(false)
     if (!r.ok) notify('err', r.error || '导入失败')
     else if (!r.data.imported) notify('err', '无法导入：' + (r.data.reason || '结构不明'))
@@ -103,8 +140,10 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
 
   const saveForm = async (): Promise<void> => {
     if (!form) return
-    const input: ApiHubProfileInput = { id: form.id, adapterId: sel, name: form.name.trim(), fields: {} }
+    const input: ApiHubProfileSaveInput = { id: form.id, adapterId: sel as ApiHubAdapterId, name: form.name.trim(), fields: {} }
     for (const def of selInfo?.fieldDefs ?? []) input.fields[def.key] = (form.fields[def.key] ?? '').trim()
+    // 手动填了密钥就以手动为准；否则带上"用哪条自定义供应商的密钥"（明文不出主进程）
+    if (!form.apiKey.trim() && form.keyFromProviderId) input.apiKeyFromProviderId = form.keyFromProviderId
     setBusy(true)
     const r = await window.api.apihubSave(input, form.apiKey)
     setBusy(false)
@@ -118,9 +157,24 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
     await refresh()
   }
 
+  /** 档案 → 自定义供应商：密钥在主进程内部转存（明文不出主进程），这里只确认一个名字 */
+  const saveProfileAsProvider = async (): Promise<void> => {
+    if (!saveAsProfile) return
+    setBusy(true)
+    const r = await window.api.apihubProviderFromProfile(sel as ApiHubAdapterId, saveAsProfile.id, saveAsProfile.name)
+    setBusy(false)
+    setSaveAsProfile(null)
+    if (!r.ok) {
+      notify('err', r.error || '另存为供应商失败')
+      return
+    }
+    notify('ok', '已另存为自定义供应商「' + (r.data?.label ?? '') + '」，以后新增档案可一键填入')
+    await loadProviders()
+  }
+
   const doSwitch = async (id: string, confirmed?: boolean): Promise<void> => {
     setBusy(true)
-    const r = await window.api.apihubSwitch(sel, id, confirmed)
+    const r = await window.api.apihubSwitch(sel as ApiHubAdapterId, id, confirmed)
     setBusy(false)
     if (!r.ok) {
       setPending(null)
@@ -146,7 +200,7 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
 
   const doDelete = async (p: ApiHubProfileView): Promise<void> => {
     setBusy(true)
-    const r = await window.api.apihubDelete(sel, p.id)
+    const r = await window.api.apihubDelete(sel as ApiHubAdapterId, p.id)
     setBusy(false)
     setPending(null)
     if (!r.ok) notify('err', r.error || '删除失败')
@@ -162,10 +216,11 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
   const cur = selData.current
   const pendingProfile = pending ? selData.profiles.find((p) => p.id === pending.id) : undefined
   const editingKey = form?.id ? selData.profiles.find((p) => p.id === form.id)?.apiKeyTail : undefined
+  const visibleDefs = (selInfo?.fieldDefs ?? []).filter((d) => showAdvanced || !d.advanced)
 
   return (
     <div>
-      {/* ---------- 适配器选项卡 ---------- */}
+      {/* ---------- 适配器选项卡（按注册表自动增减：没检测到的工具不会出现在这里） ---------- */}
       <div className="toolbar apihub-tabs">
         {adapters.map((a) => (
           <button
@@ -174,16 +229,28 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
             onClick={() => void switchTab(a.id)}
           >
             {a.label}
-            {!a.available ? ' ⃠' : ''}
+            {!a.available && <span className="na-mark">暂不支持</span>}
           </button>
         ))}
       </div>
+      {catalogDegraded && (
+        <div className="banner warn">目录暂时是按内置列表显示的（{catalogDegraded}），可能包含这台机器上没装的工具。</div>
+      )}
+      {!catalogDegraded && adapters.length === 0 && (
+        <div className="banner warn">
+          没有检测到可用于接口切换的工具（也可能都被停用了）。到仪表盘点一次「自动发现」；接口中心只影响"切换给谁用"，
+          技能扫描与同步不受影响。
+        </div>
+      )}
 
       {/* ---------- 不可用适配器说明卡 ---------- */}
       {selInfo && !selInfo.available && (
         <div className="card">
           <h3>{selInfo.label}</h3>
           <div className="banner warn">{selInfo.naReason}</div>
+          <div className="hint">
+            这里只影响「接口一键切换」：技能扫描、同步、版本检查都照常工作，不需要你做任何事。
+          </div>
         </div>
       )}
 
@@ -224,7 +291,10 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
             <button className="btn primary" disabled={busy} onClick={() => void importCurrent()}>
               从当前配置导入
             </button>
-            <button className="btn" onClick={() => setForm({ name: '', fields: {}, apiKey: '' })}>
+            <button
+              className="btn"
+              onClick={() => setForm({ name: '', fields: {}, apiKey: '', prefillMissing: [], prefillNotes: [] })}
+            >
               新增档案
             </button>
             <button className="btn ghost" disabled={busy} onClick={() => void refresh()}>
@@ -240,7 +310,7 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
       {/* ---------- 档案列表 ---------- */}
       {selInfo?.available && (
         <div className="card">
-          <h3>供应商档案（加密存于本机 userData，不入 vault 仓库）</h3>
+          <h3>供应商档案（加密保存在这台电脑上，不进技能库、不会同步）</h3>
           {pending && pendingProfile && (
             <div className="banner warn">
               {pending.kind === 'switch'
@@ -261,6 +331,19 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
                   确认切换
                 </button>
                 <button className="btn ghost" onClick={() => { setPending(null); setZcodeConfirm(false) }}>
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+          {saveAsProfile && (
+            <div className="banner">
+              把档案「{saveAsProfile.name}」另存为自定义供应商？密钥在主进程内部转存，不会显示出来；以后新增档案可以一键填入。
+              <div className="toolbar">
+                <button className="btn primary" disabled={busy} onClick={() => void saveProfileAsProvider()}>
+                  确认另存
+                </button>
+                <button className="btn ghost" onClick={() => setSaveAsProfile(null)}>
                   取消
                 </button>
               </div>
@@ -306,8 +389,23 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
                           <button className="btn small primary" disabled={busy || isActive} onClick={() => setPending({ kind: 'switch', id: p.id })}>
                             切换
                           </button>
-                          <button className="btn small" onClick={() => setForm({ id: p.id, name: p.name, fields: { ...p.fields }, apiKey: '' })}>
+                          <button
+                            className="btn small"
+                            onClick={() =>
+                              setForm({
+                                id: p.id,
+                                name: p.name,
+                                fields: { ...p.fields },
+                                apiKey: '',
+                                prefillMissing: [],
+                                prefillNotes: []
+                              })
+                            }
+                          >
                             编辑
+                          </button>
+                          <button className="btn small" disabled={busy} onClick={() => setSaveAsProfile(p)} title="把这条档案的地址与密钥存成自定义供应商，供其他 agent 一键填入">
+                            另存为供应商
                           </button>
                           <button className="btn small danger" disabled={busy} onClick={() => (isActive ? setPending({ kind: 'delete', id: p.id }) : void doDelete(p))}>
                             删除
@@ -327,6 +425,35 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
       {form && selInfo?.available && (
         <div className="card">
           <h3>{form.id ? '编辑档案：' + form.name : '新增档案'}</h3>
+          {!form.id && (
+            <ProviderPrefillPicker
+              adapterId={sel}
+              providers={providers}
+              notify={notify}
+              onPrefill={(r, providerId) => {
+                setForm((f) =>
+                  f
+                    ? {
+                        ...f,
+                        fields: { ...f.fields, ...r.fields },
+                        keyFromProviderId: providerId,
+                        prefillMissing: r.missing,
+                        prefillNotes: r.notes
+                      }
+                    : f
+                )
+                notify('ok', '已填入供应商信息' + (r.missing.length ? '，还有字段需要你补' : ''))
+              }}
+            />
+          )}
+          {form.keyFromProviderId && (
+            <div className="banner">
+              保存时会自动使用自定义供应商的密钥（不在界面回显）
+              {form.apiKey.trim() ? '；你已手动填写 API Key，将以手填的为准' : ''}
+            </div>
+          )}
+          {form.prefillNotes.length > 0 && <div className="hint">ⓘ {form.prefillNotes.join('；')}</div>}
+          {form.prefillMissing.length > 0 && <div className="banner warn">这些字段供应商信息里没有，请手动填写：{form.prefillMissing.join('、')}</div>}
           <table className="kv">
             <tbody>
               <tr>
@@ -335,7 +462,7 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
                   <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 MicuAPI / DeepSeek" />
                 </td>
               </tr>
-              {(selInfo.fieldDefs ?? []).map((def) => (
+              {visibleDefs.map((def) => (
                 <tr key={def.key}>
                   <th>{def.label}</th>
                   <td>
@@ -366,7 +493,13 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
                     type="password"
                     value={form.apiKey}
                     onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-                    placeholder={form.id ? '留空 = 不改动当前密钥' + (editingKey ? '（尾 4 位 ' + editingKey + '）' : '') : '仅经 IPC 传给主进程，立即加密入库'}
+                    placeholder={
+                      form.id
+                        ? '留空 = 不改动当前密钥' + (editingKey ? '（尾 4 位 ' + editingKey + '）' : '')
+                        : form.keyFromProviderId
+                          ? '留空 = 用所选自定义供应商的密钥'
+                          : '仅经 IPC 传给主进程，立即加密入库'
+                    }
                     autoComplete="off"
                   />
                 </td>
@@ -374,6 +507,11 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
             </tbody>
           </table>
           <div className="toolbar">
+            {(selInfo.fieldDefs ?? []).some((d) => d.advanced) && (
+              <button className="btn ghost" onClick={() => setShowAdvanced((v) => !v)}>
+                {showAdvanced ? '收起高级字段' : '高级字段'}
+              </button>
+            )}
             <button className="btn primary" disabled={busy} onClick={() => void saveForm()}>
               保存档案
             </button>
@@ -382,10 +520,13 @@ export default function ApiHubPage({ notify }: { notify: Notify }): React.JSX.El
             </button>
           </div>
           <div className="hint">
-            密钥以 safeStorage（Windows DPAPI）加密存 userData/api-hub-profiles.json；目标配置文件仅在「切换」时被写入，且写前自动时间戳备份、写后重读校验（失败自动回滚）。
+            密钥经系统自带加密机制保存（Windows 凭据保护），只存在这台电脑的应用数据里；目标配置文件仅在「切换」时被写入，且写前自动时间戳备份、写后重读校验（失败自动回滚）。
           </div>
         </div>
       )}
+
+      {/* ---------- 自定义供应商管理（与档案卡并列；所有支持的 agent 共用） ---------- */}
+      <ApiHubProvidersCard notify={notify} providers={providers} onChanged={setProviders} />
     </div>
   )
 }

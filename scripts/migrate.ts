@@ -49,7 +49,7 @@ const GITATTRIBUTES = [
 const REGISTRY_TEXT =
   JSON.stringify(
     {
-      version: 2,
+      version: 3,
       agents: [
         {
           name: 'zcode-win',

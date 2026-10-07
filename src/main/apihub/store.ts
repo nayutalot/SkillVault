@@ -1,10 +1,20 @@
-// 接口中心档案库：userData/api-hub-profiles.json，按适配器分节。
+// 接口中心档案库：userData/api-hub-profiles.json，按适配器分节 + 自定义供应商一节。
 // api_key 以 Electron safeStorage（Windows DPAPI）加密后 base64 落盘；不可用时降级 base64 明文并标记 plainStore:true。
 // 全值只在 seal/解密瞬间存在于内存，绝不写日志/缓存/仓库。fs 与 sealer 全部可注入，vitest 直接单测。
 // 语义与 kimi/profiles.ts 同族（复用其 KimiSealer 接口与 seal 策略）；旧「Kimi 接口」页档案在此自动迁移进 kimi 节。
 import fs from 'node:fs'
 import path from 'node:path'
-import type { ApiHubAdapterId, ApiHubProfile, ApiHubProfileInput, ApiHubProfileView, KimiProfile } from '../../shared/types'
+import type {
+  ApiHubAdapterId,
+  ApiHubCustomProvider,
+  ApiHubCustomProviderInput,
+  ApiHubCustomProviderView,
+  ApiHubProfile,
+  ApiHubProfileInput,
+  ApiHubProfileView,
+  ApiHubProviderProtocol,
+  KimiProfile
+} from '../../shared/types'
 import { loadStore as loadLegacyKimiStore, profilesFile, type KimiSealer } from '../kimi/profiles'
 import { maskSecret } from '../kimi/tomlEdit'
 
@@ -14,10 +24,16 @@ export type ApiHubStore = {
   version: typeof API_HUB_STORE_VERSION
   byAdapter: Partial<Record<ApiHubAdapterId, ApiHubProfile[]>>
   activeByAdapter: Partial<Record<ApiHubAdapterId, string | null>>
+  /**
+   * 自定义供应商（用户自填 API 地址 + 密钥，一次配置给所有支持的 agent 一键填入）。
+   * 旧文件没有这一节 → 读成空数组；**故意不升 version**：升版会让 loadHubStore 把旧文件判为不兼容整体丢弃，
+   * 用户已存的档案全没了。加可选字段是向后/向前都兼容的。
+   */
+  customProviders?: ApiHubCustomProvider[]
 }
 
 export function emptyHubStore(): ApiHubStore {
-  return { version: API_HUB_STORE_VERSION, byAdapter: {}, activeByAdapter: {} }
+  return { version: API_HUB_STORE_VERSION, byAdapter: {}, activeByAdapter: {}, customProviders: [] }
 }
 
 export function apiHubStoreFile(userDataDir: string): string {
@@ -79,6 +95,37 @@ export function migrateLegacyKimiProfiles(
   }
 }
 
+const PROVIDER_PROTOCOLS: readonly ApiHubProviderProtocol[] = ['anthropic', 'openai', 'gemini']
+
+function isProtocol(v: unknown): v is ApiHubProviderProtocol {
+  return typeof v === 'string' && (PROVIDER_PROTOCOLS as readonly string[]).includes(v)
+}
+
+/** 自定义供应商落盘解析：单条不合法就跳过（不让一条坏数据带走整份供应商列表） */
+function parseProviders(raw: unknown): ApiHubCustomProvider[] {
+  if (!Array.isArray(raw)) return []
+  const out: ApiHubCustomProvider[] = []
+  for (const p of raw) {
+    if (typeof p !== 'object' || p === null) continue
+    const o = p as Record<string, unknown>
+    if (typeof o.id !== 'string' || !o.id) continue
+    if (typeof o.apiKeySealed !== 'string' || !o.apiKeySealed) continue
+    if (typeof o.label !== 'string' || typeof o.baseUrl !== 'string' || !isProtocol(o.protocol)) continue
+    out.push({
+      id: o.id,
+      label: o.label,
+      baseUrl: o.baseUrl,
+      protocol: o.protocol,
+      ...(typeof o.defaultModel === 'string' && o.defaultModel ? { defaultModel: o.defaultModel } : {}),
+      ...(typeof o.notes === 'string' && o.notes ? { notes: o.notes } : {}),
+      apiKeySealed: o.apiKeySealed,
+      ...(o.plainStore === true ? { plainStore: true as const } : {}),
+      createdAt: typeof o.createdAt === 'number' && Number.isFinite(o.createdAt) ? o.createdAt : 0
+    })
+  }
+  return out
+}
+
 /** 读档案库（损坏/版本不符一律回落空库，不让接口中心页起不来）；读后尝试旧 Kimi 档案自动迁移 */
 export function loadHubStore(
   userDataDir: string,
@@ -121,7 +168,7 @@ export function loadHubStore(
             activeByAdapter[adapterId as ApiHubAdapterId] = activeId
           }
         }
-        store = { version: API_HUB_STORE_VERSION, byAdapter, activeByAdapter }
+        store = { version: API_HUB_STORE_VERSION, byAdapter, activeByAdapter, customProviders: parseProviders(raw.customProviders) }
       }
     }
   } catch {
@@ -153,8 +200,9 @@ export function hubSealKey(plain: string, useEncryption: boolean, sealer: KimiSe
   return Buffer.from(plain, 'utf8').toString('base64')
 }
 
-/** 解密 api_key（plainStore 降级态先 base64 还原）；仅供切换/掩码等主进程路径使用 */
-export function hubDecryptKey(p: ApiHubProfile, sealer: KimiSealer): string {
+/** 解密 api_key（plainStore 降级态先 base64 还原）；仅供切换/掩码等主进程路径使用。
+ *  参数只取密文与降级标记两个字段 —— 档案与自定义供应商共用同一套 seal/解密机制。 */
+export function hubDecryptKey(p: { apiKeySealed: string; plainStore?: true }, sealer: KimiSealer): string {
   if (p.plainStore === true) return Buffer.from(p.apiKeySealed, 'base64').toString('utf8')
   return sealer.decrypt(p.apiKeySealed)
 }
@@ -235,4 +283,145 @@ export function deleteHubProfile(
   if (store.activeByAdapter[adapterId] === id) store.activeByAdapter[adapterId] = null
   saveHubStore(userDataDir, store, fsMod)
   return store
+}
+
+// ---------- 自定义供应商（用户自己填 API 地址 + 密钥） ----------
+
+export function newProviderId(): string {
+  return 'cp-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36)
+}
+
+export function listCustomProviders(store: ApiHubStore): ApiHubCustomProvider[] {
+  return store.customProviders ?? []
+}
+
+export function findCustomProvider(store: ApiHubStore, id: string): ApiHubCustomProvider | undefined {
+  return listCustomProviders(store).find((p) => p.id === id)
+}
+
+/** 通用必做校验（适配器无关）；错误文案白话，用户看得懂要改哪里 */
+export function validateCustomProviderInput(input: ApiHubCustomProviderInput | undefined): string | null {
+  if (!input || typeof input !== 'object') return '供应商信息不能为空'
+  if (typeof input.label !== 'string' || !input.label.trim()) return '供应商名称不能为空'
+  const url = typeof input.baseUrl === 'string' ? input.baseUrl.trim() : ''
+  if (!url) return 'API 地址（Base URL）不能为空'
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return 'API 地址必须以 http:// 或 https:// 开头'
+  if (!isProtocol(input.protocol)) return '接口格式只能是 anthropic / openai / gemini'
+  return null
+}
+
+/** 供应商 → 脱敏视图（解密仅取掩码；解密失败如实回 null，不抛、不伪造） */
+export function customProviderView(p: ApiHubCustomProvider, sealer: KimiSealer): ApiHubCustomProviderView {
+  let masked = { tail: null as string | null, len: null as number | null }
+  try {
+    const m = maskSecret(hubDecryptKey(p, sealer))
+    masked = { tail: m.tail, len: m.len }
+  } catch {
+    /* 换机后 DPAPI 密文不可解：如实显示未知 */
+  }
+  return {
+    id: p.id,
+    label: p.label,
+    baseUrl: p.baseUrl,
+    protocol: p.protocol,
+    ...(p.defaultModel ? { defaultModel: p.defaultModel } : {}),
+    ...(p.notes ? { notes: p.notes } : {}),
+    apiKeyTail: masked.tail,
+    apiKeyLen: masked.len,
+    plainStore: p.plainStore === true,
+    createdAt: p.createdAt
+  }
+}
+
+export function listCustomProviderViews(store: ApiHubStore, sealer: KimiSealer): ApiHubCustomProviderView[] {
+  return listCustomProviders(store).map((p) => customProviderView(p, sealer))
+}
+
+/**
+ * 新增/编辑自定义供应商。apiKeyPlain 非空 → 重新 seal；为空且是编辑 → 保留原密文（留空 = 不改动密钥）。
+ * 与档案同一规矩：明文只在入参瞬间存在，立即 seal，绝不返回渲染层。
+ */
+export function upsertCustomProvider(
+  userDataDir: string,
+  input: ApiHubCustomProviderInput,
+  apiKeyPlain: string,
+  sealer: KimiSealer,
+  fsMod: typeof fs = fs
+): ApiHubCustomProvider {
+  const err = validateCustomProviderInput(input)
+  if (err) throw new Error(err)
+  const store = loadHubStore(userDataDir, fsMod)
+  const list = listCustomProviders(store)
+  const existing = input.id ? list.find((p) => p.id === input.id) : undefined
+  if (input.id && !existing) throw new Error('找不到要编辑的供应商: ' + input.id)
+  const base = {
+    id: existing?.id ?? newProviderId(),
+    label: input.label.trim(),
+    baseUrl: input.baseUrl.trim(),
+    protocol: input.protocol,
+    ...(input.defaultModel && input.defaultModel.trim() ? { defaultModel: input.defaultModel.trim() } : {}),
+    ...(input.notes && input.notes.trim() ? { notes: input.notes.trim() } : {}),
+    createdAt: existing?.createdAt ?? Date.now()
+  }
+  let provider: ApiHubCustomProvider
+  if (existing && !apiKeyPlain.trim()) {
+    provider = { ...base, apiKeySealed: existing.apiKeySealed, ...(existing.plainStore === true ? { plainStore: true as const } : {}) }
+  } else {
+    if (!apiKeyPlain.trim()) throw new Error('API Key 不能为空（编辑时留空表示不改动）')
+    const useDpapi = sealer.isEncryptionAvailable()
+    provider = { ...base, apiKeySealed: hubSealKey(apiKeyPlain, useDpapi, sealer), ...(useDpapi ? {} : { plainStore: true as const }) }
+  }
+  store.customProviders = existing ? list.map((p) => (p.id === provider.id ? provider : p)) : [...list, provider]
+  saveHubStore(userDataDir, store, fsMod)
+  return provider
+}
+
+/** 删除自定义供应商（已引用了它的档案不受影响：档案自己存着密钥密文）。返回删除后的 store。 */
+export function deleteCustomProvider(userDataDir: string, id: string, fsMod: typeof fs = fs): ApiHubStore {
+  const store = loadHubStore(userDataDir, fsMod)
+  const list = listCustomProviders(store)
+  const next = list.filter((p) => p.id !== id)
+  if (next.length === list.length) throw new Error('找不到要删除的供应商: ' + id)
+  store.customProviders = next
+  saveHubStore(userDataDir, store, fsMod)
+  return store
+}
+
+/**
+ * 档案「另存为自定义供应商」：直接把档案的密钥密文转存（同一 sealer/plainStore 语义），
+ * 明文一次都不出现 —— 比"渲染层拿到明文再提交一遍"安全得多。
+ * 地址/接口格式/默认模型按适配器的字段命名差异做一次映射。
+ */
+export function customProviderFromProfile(
+  userDataDir: string,
+  adapterId: ApiHubAdapterId,
+  profileId: string,
+  label: string | undefined,
+  sealer: KimiSealer,
+  fsMod: typeof fs = fs
+): ApiHubCustomProvider {
+  const store = loadHubStore(userDataDir, fsMod)
+  const profile = sectionOf(store, adapterId).find((p) => p.id === profileId)
+  if (!profile) throw new Error('找不到要另存的档案: ' + profileId)
+  const f = profile.fields
+  const baseUrl = (f.baseUrl ?? f.baseURL ?? '').trim()
+  if (!baseUrl) throw new Error('该档案没有填 API 地址，无法另存为自定义供应商')
+  // 接口格式：kimi 的 type / zcode 的 kind 各自能透露一点，其余按 openai 兼容兜底
+  const type = (f.type ?? '').trim()
+  const kind = (f.kind ?? '').trim()
+  const protocol: ApiHubProviderProtocol = type === 'anthropic' || kind === 'anthropic' ? 'anthropic' : 'openai'
+  const defaultModel = (f.modelId ?? '').trim()
+  const provider: ApiHubCustomProvider = {
+    id: newProviderId(),
+    label: (label ?? profile.name).trim() || profile.name,
+    baseUrl,
+    protocol,
+    ...(defaultModel ? { defaultModel } : {}),
+    apiKeySealed: profile.apiKeySealed,
+    ...(profile.plainStore === true ? { plainStore: true as const } : {}),
+    createdAt: Date.now()
+  }
+  store.customProviders = [...listCustomProviders(store), provider]
+  saveHubStore(userDataDir, store, fsMod)
+  return provider
 }
