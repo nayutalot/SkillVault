@@ -1,8 +1,8 @@
 {
   "schema": "skillvault-source-manifest/1",
   "purpose": "本清单是技术文档封面「源码版本」的实际指向：文档只引用本文件，不在正文里印固定 SHA，避免文档与提交号互相指代的悖论。评审者按本文件的 anchorCommit checkout，即可得到文档描述的那一份源码与文档。",
-  "anchorCommit": "6910c8139d8d1f25e377b96a973f39965054ea88",
-  "anchorCommitShort": "6910c8139d8d",
+  "anchorCommit": "545c05d7ac33d893843a3708f6d67029e52274a4",
+  "anchorCommitShort": "545c05d7ac33",
   "anchorNote": "anchorCommit 指向**包含本次参赛全部源码与文档**的那次提交。若本清单是在该提交之后补写的，补写它的那次提交只新增本文件一个条目，不改动任何源码或文档内容。",
   "srcFingerprint": "5e2ec3559579e0963b2c1d24a00a2e367b78c091c4fdc025f9faa7ed6adaae9b",
   "srcFileCount": 62,
@@ -20,7 +20,7 @@
     "generatedBy": "scripts/count-stats.mjs"
   },
   "verify": [
-    "git checkout 6910c8139d8d1f25e377b96a973f39965054ea88   # 取到文档描述的那一份源码",
+    "git checkout 545c05d7ac33d893843a3708f6d67029e52274a4   # 取到文档描述的那一份源码",
     "node scripts/source-manifest.mjs --check     # 校验 src/ 指纹与本清单一致（退出码 0 即一致）",
     "node scripts/count-stats.mjs --vitest        # 复算规模数字，与 docs/stats.json 比对",
     "node scripts/count-prompt-chains.mjs --check # 复算四条 Prompt 链的消息构成"

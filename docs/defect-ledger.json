@@ -642,6 +642,24 @@
       "notes": "该修复由 2026-11-04 的技术文档盲审触发（Codex 指出「失败被报成功 / 状态不可见」类表述缺判据），是本台账中唯一一条 2026-11-04 轮次的缺陷。",
       "status": "已修复",
       "fixCommitAlias": "该修复只存在于 main 线（backup-original-history 止于 9035ca8，早于本轮）"
+    },
+    {
+      "id": "D-2026-11-04-02",
+      "category": "安全",
+      "symptom": "`skm link ../../etc` / `skm unlink ../../etc` 能把链接建到 agent 技能目录**之外**（真实路径穿越）。伴生 CLI 的 `link` / `unlink` 把命令行参数直接拼进路径，**缺少技能名白名单** —— 主进程侧有 `SKILL_NAME_RE` 校验，伴生 CLI 侧没有，两侧口径分叉。",
+      "rootCause": "命令行参数是不可信输入，但在被当作路径片段之前没有先证明它只能是 vault 内的一个技能目录名。",
+      "firstSeenRound": "2026-11-04",
+      "fixCommit": "6910c81",
+      "fixLocation": "src/companion/skm.ts 的 `cmdLink` / `cmdUnlink`（就地加「单段 kebab 白名单 → 「根目录 + 分隔符 + 名字」拼接 → 前缀比对」）；`SKILLS_DIR` / `AGENTS_DIR` 改为经 `vaultRoot()` 归一化后拼接。",
+      "fixLocationNeedle": "if (!/^[a-z0-9-]+$/.test(skill)) fail(",
+      "regressionTest": {
+        "file": "tests/companion-arg-guard.test.ts",
+        "title": "skm link 拒绝含 ../ 的技能名（路径穿越），不建任何链接"
+      },
+      "recurrence": "无复发",
+      "notes": "本条是 2026-11-04 第二次复扫时发现的**真实漏洞**：上一版告警台账把它判成了「误报（已裁定）」，那个判断是错的 —— 只看了告警文本、没有构造 `../../etc` 实际复现。本轮修复方式刻意**不抽公共函数**：白名单与包含校验必须落在「拿到参数」的那一层，才能证明这条链是闭合的。",
+      "status": "已修复",
+      "fixCommitAlias": "该修复只存在于 main 线（backup-original-history 止于 9035ca8，早于本轮）"
     }
   ],
   "withoutTest": [
