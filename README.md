@@ -42,16 +42,19 @@ SkillVault 把散落在各个 agent harness（Claude Code、Codex、Kimi CLI、G
 
 共 7 个适配器 ID：`claude-cli`、`claude-desktop`、`codex`、`grok`、`kimi`、`zcode`、`deepseek`。其中 5 个可用（Claude Code CLI、Codex、Grok、Kimi、zcode），不适用的渲染为 N/A 说明卡。切换流程：检测目标进程运行 → 备份原配置 → 原子写入 → 重读校验 → 失败自动回滚；支持从现有配置一键导入为档案。
 
+适配器与版本中心条目均由注册表驱动动态增减：注册表中检测到但尚未实现适配的 Agent 会渲染为说明卡而非空白页。
+
 ## 架构
 
 ```
 src/
 ├── main/               Electron 主进程（全部业务编排）
-│   ├── apihub/         接口中心：index 编排 / transforms 纯函数 / store 档案库
+│   ├── apihub/         接口中心：index 编排 / transforms 纯函数 / store 档案库 / adapters 适配器
 │   ├── versionCenter/  版本中心：catalog 通道目录 / github / npm / winget / native / arp / jobs
 │   ├── kimi/           Kimi 档案（safeStorage 封存 + config.toml 编辑）
 │   ├── wslmon/ docker/ WSL / Docker 监控与操作
-│   ├── sync.ts doctor.ts importer.ts wslBridge.ts wslScan.ts …
+│   ├── agentDiscover.ts  Agent 自适应发现（16 条签名 + generic 兜底）
+│   ├── sync.ts doctor.ts importer.ts wslBridge.ts wslScan.ts winLinks.ts …
 │   └── settings.ts singleInstance.ts …
 ├── preload/            contextBridge 暴露 IPC（统一 Result<T> 封装）
 ├── renderer/           React 9 页 UI（Dashboard / Import / Sync / Doctor / VersionCenter / ApiHub / Docker / WSL / Settings）
@@ -59,7 +62,8 @@ src/
 │   └── skm.ts          WSL 伴生 CLI：esbuild 打包为零依赖单文件 out/skm.mjs，
 │                        子命令 scan / link / unlink / agents-link / agents-unlink / sync /
 │                        fix-permissions / selfcheck，始终输出单个 JSON，绝不访问网络
-└── shared/             三端共享：types.ts / registry.json 校验 / SKILL.md frontmatter / 路径常量
+└── shared/             三端共享：types.ts / registry.ts / agentSignatures.ts /
+                         frontmatter.ts / textDecode.ts / paths.ts
 ```
 
 ## Vault 布局
@@ -70,7 +74,7 @@ C:\Users\sakuya\SkillVault.git             本地裸库（origin，零云）
 \\wsl.localhost\<distro>\root\skill-vault  WSL 侧 vault（默认 /root/skill-vault）
 ```
 
-`registry.json`（version 2）记录每个 agent 的平台、skillsDir、include 规则与可选 agentsDir；应用与 WSL 伴生 CLI 共用同一套解析逻辑（`src/shared`）。
+`registry.json`（version 3）记录每个 agent 的平台、skillsDir、include 规则、可选 agentsDir，以及 `source` / `enabled` / `sigId` / `status` 字段；应用与 WSL 伴生 CLI 共用同一套解析逻辑（`src/shared`），读取端对 v1、v2 均保持兼容。
 
 ## 快速开始
 
@@ -81,6 +85,8 @@ pnpm install
 pnpm build:companion   # 打包 WSL 伴生 CLI → out/skm.mjs
 pnpm dev               # 启动开发模式
 ```
+
+完整的复现步骤（含双端 WSL 部署与验收顺序）见 **[REPRODUCE.md](REPRODUCE.md)**。
 
 ## 常用脚本
 
@@ -97,7 +103,22 @@ pnpm dev               # 启动开发模式
 
 ## 测试
 
-vitest，**25 个测试文件、404 个用例**（全部通过）。文件系统、home 目录、时钟、加密器、子进程均可注入，测试在临时目录演练，真实文件零改动；外部命令（docker / wsl / git / npm）经 fakeSpawn 演练。
+vitest，**37 个测试文件、566 个用例**（全部通过）。文件系统、home 目录、时钟、加密器、子进程均可注入，测试在临时目录演练，真实文件零改动；外部命令（docker / wsl / git / npm）经 fakeSpawn 演练。
+
+## 参赛材料
+
+本仓库同时作为传智杯「AI 创新应用挑战赛 · 个人赛」的参赛作品提交，材料均在仓库内：
+
+| 材料 | 路径 | 说明 |
+| --- | --- | --- |
+| 技术文档（PDF） | [`docs/SkillVault-技术文档.pdf`](docs/SkillVault-技术文档.pdf) | 27 页，含架构设计、意图控制策略、可复现性论证与实测数据 |
+| 技术文档（可编辑源） | [`docs/SkillVault-技术文档.docx`](docs/SkillVault-技术文档.docx) | 同上，可编辑 |
+| 10 分钟复现指南 | [`REPRODUCE.md`](REPRODUCE.md) | 环境配置、依赖清单、环境变量模板、双端部署与验收顺序 |
+| AI 协同 Prompt 链快照 | [`docs/prompt-chains/`](docs/prompt-chains/) | 4 条核心迭代的原始对话导出，未经改写 |
+| 实测数据 | [`docs/measured-data.json`](docs/measured-data.json) | 分发方式对照、跨端同步耗时、规模对照 |
+| 界面截图 | [`docs/screenshots/`](docs/screenshots/) | 9 个功能页面 |
+| 架构图 | [`docs/figures/`](docs/figures/) | 6 张系统架构与流程图 |
+| 变更日志 | [`CHANGELOG.md`](CHANGELOG.md) | v1.0.0 → v1.3.0 能力演进 |
 
 ## 打包与分发
 
@@ -114,4 +135,4 @@ vitest，**25 个测试文件、404 个用例**（全部通过）。文件系统
 
 ---
 
-作者：sakuya · 私有项目
+作者：sakuya · MIT License

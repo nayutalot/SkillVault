@@ -1,0 +1,80 @@
+{
+  "distribution": {
+    "skills": 26,
+    "agents": 20,
+    "files_per_skill": 3,
+    "payload_kb_per_file": 8,
+    "source_bytes_total": 427648,
+    "junction_ms": 338.9,
+    "copy_ms": 3725.9,
+    "speedup_x": 11.0,
+    "junctions_created": 520,
+    "junctions_failed": 0,
+    "copies_created": 520
+  },
+  "sync": {
+    "skills": 26,
+    "first_round": {
+      "windows_push_ms": 720.4,
+      "wsl_pull_rebase_push_ms": 915.5,
+      "windows_pull_merge_ms": 308.9,
+      "total_ms": 1944.9
+    },
+    "incremental_rounds_ms": [
+      1122.6,
+      990.3,
+      976.5,
+      1000.5,
+      976.0
+    ],
+    "incremental_min_ms": 976.0,
+    "incremental_max_ms": 1122.6,
+    "incremental_avg_ms": 1013.2
+  },
+  "sync_scale": [
+    {
+      "skills": 10,
+      "files": 30,
+      "initial_push_ms": 471.2,
+      "incremental_push_ms": 353.9
+    },
+    {
+      "skills": 26,
+      "files": 78,
+      "initial_push_ms": 625.0,
+      "incremental_push_ms": 363.2
+    },
+    {
+      "skills": 100,
+      "files": 300,
+      "initial_push_ms": 490.9,
+      "incremental_push_ms": 413.4
+    },
+    {
+      "skills": 500,
+      "files": 1500,
+      "initial_push_ms": 419.4,
+      "incremental_push_ms": 432.8
+    }
+  ],
+  "single_update": {
+    "skills": 26,
+    "agents": 20,
+    "junction_setup_ms": 338.3,
+    "junctions_created": 520,
+    "link_update_ms": 4.9,
+    "link_update_all_agents_visible": true,
+    "link_extra_copies_needed": 0,
+    "copy_update_ms": 41.2,
+    "copy_extra_copies_needed": 20,
+    "note": "链接分发下修改 vault 源文件，各 agent 目录零额外操作即生效；逐份复制需重写 20 份副本"
+  },
+  "environment": {
+    "os": "Windows 11",
+    "node": "v24.21.0",
+    "git": "2.54.0.windows.1",
+    "disk": "本机 NTFS（vault 与 agent 目录同卷）",
+    "date": "2026-11-04"
+  },
+  "method": "脚本化实测：造等价数据后分别用 fs.symlinkSync(...,\"junction\") 与 shutil.copytree 建立 26 技能 × 20 agent 的分发，再测 Git 三步同步；原始数据见 sync_scale 与 incremental_rounds_ms"
+}
