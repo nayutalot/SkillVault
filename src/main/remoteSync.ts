@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
 import type { RemoteTarget } from '../shared/types'
-import { git } from './git'
+import { gitAsync } from './git'
 import { sshArgs, type RemoteSpawner } from './remote'
 
 export type RemoteStep = { cmd: string; ok: boolean; detail: string }
@@ -175,8 +175,9 @@ export function transportFor(t: RemoteTarget, deps?: RealTransportDeps): RemoteT
 // ---------- 编排（transport 注入；单测 fake 全覆盖） ----------
 
 export type SyncToRemoteDeps = {
-  /** 本地 git 命令执行（默认 git.ts 的同步实现；测试可不注入用真实 tmp 仓库） */
-  gitFn?: (cwd: string, args: string[]) => { ok: boolean; stdout: string; stderr: string }
+  /** 本地 git 命令执行（默认 git.ts 的异步实现；测试可注入同步或异步的 fake）。
+   *  允许同步/异步两种形态：老测试注入的是同步 fn，这里一律 await，两者都能工作。 */
+  gitFn?: (cwd: string, args: string[]) => { ok: boolean; stdout: string; stderr: string } | Promise<{ ok: boolean; stdout: string; stderr: string }>
   /** bundle 临时目录（默认 os.tmpdir()；测试可注入固定目录） */
   tmpDir?: string
 }
@@ -192,7 +193,7 @@ export async function syncToRemote(
   transport: RemoteTransport,
   deps: SyncToRemoteDeps = {}
 ): Promise<RemoteSyncResult> {
-  const gitFn = deps.gitFn ?? git
+  const gitFn = deps.gitFn ?? gitAsync
   const steps: RemoteStep[] = []
   // 自建临时目录要在 finally 整体回收（只删 bundle 文件会每次在 %TEMP% 残留一个空目录壳）
   const ownsTmpDir = !deps.tmpDir
@@ -200,7 +201,7 @@ export async function syncToRemote(
   const bundle = path.join(tmpDir, 'skillvault.bundle')
   try {
     // 1) 本地 bundle（--all 含全部分支/标签）
-    const r = gitFn(vaultPath, ['bundle', 'create', bundle, '--all'])
+    const r = await gitFn(vaultPath, ['bundle', 'create', bundle, '--all'])
     steps.push({
       cmd: `git bundle create ${bundle} --all`,
       ok: r.ok,

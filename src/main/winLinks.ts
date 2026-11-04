@@ -174,14 +174,200 @@ function untrashMove(trashed: string, originalPath: string): void {
   }
 }
 
+// ---------- agentsDir 修复前的差异预检（先看差异，再动手） ----------
+
+export type AgentsRepairPlanEntry = {
+  file: string
+  /** 该文件的处置方式 */
+  action: 'keep' | 'replace' | 'add' | 'remove-extra'
+  /**
+   * 目标端与 vault 端内容是否逐字节一致。
+   * - 'keep'（同一 inode）：必然一致（本来就是同一个文件）
+   * - 'replace'：逐字节比较的结果；目标端是链接时按「是否指向 vault 同一文件」判定
+   * - 'add' / 'remove-extra'：不存在可比的两端，恒为 false（不表示「内容有差异」，只表示无可比）
+   */
+  contentSame: boolean
+  /** 目标端字节数 / vault 端字节数（action==='remove-extra' 时 vault 端为 undefined） */
+  dstSize?: number
+  srcSize?: number
+  /** 目标端最后修改时间（ISO）/ vault 端最后修改时间（ISO） */
+  dstMtime?: string
+  srcMtime?: string
+  /** 目标端是否比 vault 端更新 —— 更可能含未合入 vault 的用户改动 */
+  dstNewerThanSrc?: boolean
+}
+
+export type AgentsRepairPlan = {
+  entries: AgentsRepairPlanEntry[]
+  /** 需要替换且目标端更新（或内容不一致）的条目数 —— 提示用户人工核对的规模 */
+  conflictCount: number
+}
+
+/**
+ * stat（跟随符号链接）取大小与修改时间；失败时退回 lstat。
+ * - stat 成功：size 是「目标端实际内容的字节数」（跟随链接，与用户看到的文件一致）
+ * - stat 失败（悬空链接等）：lstat 拿链接自身的修改时间；字节数如实留空（未知），
+ *   不用「链接路径长度」冒充文件大小 —— 那会让用户按错误的大小去核对。
+ */
+function fileInfo(p: string): { size?: number; mtimeMs: number } | null {
+  try {
+    const st = fs.statSync(p)
+    return { size: st.size, mtimeMs: st.mtimeMs }
+  } catch {
+    try {
+      const st = fs.lstatSync(p)
+      return st.isSymbolicLink() ? { mtimeMs: st.mtimeMs } : { size: st.size, mtimeMs: st.mtimeMs }
+    } catch {
+      return null
+    }
+  }
+}
+
+/** 读文件内容；读不到（被占用 / 悬空链接 / 无权限）返回 null（不抛） */
+function readBytesSafe(p: string): Buffer | null {
+  try {
+    return fs.readFileSync(p)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 目标端与 vault 端的内容是否一致。
+ * - 目标端是符号链接：读不到「自己的字节」，只能比链接指向 —— 指向 vault 同一文件即视为一致；
+ *   指向别处（或悬空）视为不一致（悬空链接原本指向的旧版本可能已不存在，需人工确认）。
+ * - 两边都是普通文件：逐字节比较；读失败一律视为不同（宁可多提示一次，也不谎称内容一致）。
+ */
+function sameContent(src: string, dst: string): boolean {
+  if (isLinkPath(dst)) {
+    try {
+      const target = fs.readlinkSync(dst)
+      return path.resolve(path.dirname(dst), target) === path.resolve(src)
+    } catch {
+      return false
+    }
+  }
+  const ba = readBytesSafe(src)
+  const bb = readBytesSafe(dst)
+  if (!ba || !bb) return false
+  return ba.equals(bb)
+}
+
+/** 符号链接的指向（用于告诉用户旧链接原本指向哪里）；不是链接或读不出时返回空串 */
+function linkTargetOf(p: string): string {
+  try {
+    return fs.readlinkSync(p)
+  } catch {
+    return ''
+  }
+}
+
+/** agentsDir 里的 .md 清单（含符号链接形态的旧文件；只统计文件，不含子目录） */
+function listAgentsDirMdFiles(agentsDir: string): string[] {
+  try {
+    return fs
+      .readdirSync(agentsDir, { withFileTypes: true })
+      .filter((e) => (e.isFile() || e.isSymbolicLink()) && e.name.toLowerCase().endsWith('.md'))
+      .map((e) => e.name)
+      .sort((a, b) => a.localeCompare(b))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 是否需要人工核对（只对 'replace' 有意义 —— 只有它会移走一份旧文件）：
+ * - 内容与 vault 不一致 → 必须核对（用户可能在这里改过、还没合回 vault）
+ * - 内容一致但目标端比 vault 端更新 → 仍要核对：内容相同不代表没人动过它，
+ *   mtime 是「目标端曾被单独写过」的唯一线索（哪怕只差几毫秒也如实报出，
+ *   不设阈值 —— 阈值会把「用户刚改过」的真实情况一起藏起来）
+ * 其余（内容一致且目标端不比 vault 新）→ 内容没丢，不需要打扰用户。
+ */
+export function planEntryNeedsManualCheck(e: AgentsRepairPlanEntry): boolean {
+  if (e.action !== 'replace') return false
+  if (!e.contentSame) return true
+  return e.dstNewerThanSrc === true
+}
+
+/** 一侧的「字节数 / 修改时间」展示文案（缺失时如实写「未知」） */
+function describeSide(size: number | undefined, mtime: string | undefined): string {
+  return `${size ?? '未知'} 字节 / ${mtime ?? '未知时间'}`
+}
+
+/** replace 条目里「内容是否一致」的中文说法（步骤日志与 conflicts.reason 共用） */
+function describeContentSame(same: boolean): string {
+  return same ? '内容一致' : '内容不同'
+}
+
+/**
+ * 修复前预检：以 vault agents/ 为源，算出每个文件的处置方式与差异证据（字节数 / 修改时间 / 谁更新）。
+ * 目的：修复会把目标端「同名不同 inode」的旧文件移入回收目录 —— 那些文件可能含有用户
+ * 尚未合入 vault 的改动。先算出差异，修复后就能把差异原样告诉用户（而不是只说「移入回收」）。
+ * 本函数是纯只读的：不创建、不移动、不删除任何文件。
+ */
+export function planAgentsDirRepair(vaultPath: string, agentsDir: string): AgentsRepairPlan {
+  const vaultAgents = vaultAgentsDir(vaultPath)
+  const vaultFiles = listVaultAgentFiles(vaultPath)
+  const entries: AgentsRepairPlanEntry[] = []
+
+  for (const f of vaultFiles) {
+    const src = path.join(vaultAgents, f)
+    const dst = path.join(agentsDir, f)
+    const srcInfo = fileInfo(src)
+    const dstInfo = fileInfo(dst)
+    const dstMtime = dstInfo ? new Date(dstInfo.mtimeMs).toISOString() : undefined
+    const srcMtime = srcInfo ? new Date(srcInfo.mtimeMs).toISOString() : undefined
+    // dstNewerThanSrc 用毫秒精度比较（ISO 字符串保留毫秒，解析回来仍是原值）
+    const dstNewerThanSrc = dstInfo && srcInfo ? dstInfo.mtimeMs > srcInfo.mtimeMs : undefined
+    const base = {
+      file: f,
+      dstSize: dstInfo?.size,
+      srcSize: srcInfo?.size,
+      dstMtime,
+      srcMtime,
+      dstNewerThanSrc
+    }
+    if (!dstInfo) {
+      // vault 有、目标端没有 → 直接建硬链接，没有旧内容可丢
+      entries.push({ ...base, action: 'add', contentSame: false })
+      continue
+    }
+    // 已是同一 inode 且不是链接 → 无需处理（与修复流程的跳过条件保持一致）
+    if (sameFileByIno(src, dst) && !isLinkPath(dst)) {
+      entries.push({ ...base, action: 'keep', contentSame: true })
+      continue
+    }
+    // 同名但不是同一个文件 → 会被移入回收目录并重建为硬链接
+    entries.push({ ...base, action: 'replace', contentSame: sameContent(src, dst) })
+  }
+
+  for (const name of listAgentsDirMdFiles(agentsDir)) {
+    if (vaultFiles.includes(name)) continue
+    const info = fileInfo(path.join(agentsDir, name))
+    entries.push({
+      file: name,
+      action: 'remove-extra',
+      contentSame: false,
+      dstSize: info?.size,
+      dstMtime: info ? new Date(info.mtimeMs).toISOString() : undefined
+    })
+  }
+
+  const conflictCount = entries.filter(planEntryNeedsManualCheck).length
+  return { entries, conflictCount }
+}
+
 /**
  * 以 vault agents/ 为源，把 agentsDir 重建为硬链接共享目录，返回步骤日志与修复后状态：
  * 1) agentsDir 是 junction/symlink → 先解除；是文件 → 拒绝（不自动删除非预期形态）
  * 2) 确保目录存在（含 junction 被替换成空目录后仍存在的常态）
- * 3) vault 每个 .md：同名同 inode 跳过；同名不同文件先移入回收目录再 fs.linkSync；缺失则直接硬链接
- * 4) 目录里 vault 没有的多余 .md → 移入回收目录（不直接删除，可人工找回）
+ * 3) 预检差异（planAgentsDirRepair）：把「谁被替换、内容差多少、谁的修改时间更新」先算清楚
+ * 4) vault 每个 .md：同名同 inode 跳过；同名不同文件先移入回收目录再 fs.linkSync；缺失则直接硬链接
+ * 5) 目录里 vault 没有的多余 .md → 移入回收目录（不直接删除，可人工找回）
  * vault agents 目录不存在时抛错（无源可链，属 vault 缺失而非 agentsDir 冲突）。
  * 跨卷（vault 与 agentsDir 不在同一 NTFS 卷）时 linkSync 必抛 EXDEV —— 在任何变更前预检并整体拒绝（零副作用）。
+ * 破坏性行为与旧版一致（仍然替换/移入回收），改变的只是「证据」：差异与修改时间随步骤日志
+ * 和 conflicts 一并回传，用户能看到自己尚未合入 vault 的改动去了哪里。
  */
 export function repairAgentsDirHardlinks(vaultPath: string, agentsDir: string, opts: AgentsRepairOptions = {}): AgentsRepairResult {
   const vaultAgents = vaultAgentsDir(vaultPath)
@@ -218,9 +404,17 @@ export function repairAgentsDirHardlinks(vaultPath: string, agentsDir: string, o
   }
 
   const vaultFiles = listVaultAgentFiles(vaultPath)
+  // 修复前先算清差异：目标端的旧文件会被移入回收目录，其中可能含有用户尚未合入 vault 的改动。
+  // 计划是在「移除 junction / 创建目录」之后算的 —— 那一步不改 agents 目录内的 .md 内容，
+  // 但会让目录从「链接」变成「真实目录」，此后再算才与实际处置顺序一致。
+  const plan = planAgentsDirRepair(vaultPath, agentsDir)
+  const planByFile = new Map(plan.entries.map((e) => [e.file, e]))
+  const conflicts: AgentsRepairResult['conflicts'] = []
+
   for (const f of vaultFiles) {
     const src = path.join(vaultAgents, f)
     const dst = path.join(agentsDir, f)
+    const pe = planByFile.get(f)
     if (sameFileByIno(src, dst) && !isLinkPath(dst)) {
       steps.push('同名同 inode，已一致，跳过: ' + f)
       continue
@@ -229,8 +423,30 @@ export function repairAgentsDirHardlinks(vaultPath: string, agentsDir: string, o
     if (pathExists(dst)) {
       // 先移回收再建链；建链失败立即回迁，绝不留「旧文件已移走、新链接没建上」的丢文件状态
       const wasLink = isLinkPath(dst)
+      // 链接指向必须在移动前取（移动后原路径已不存在，读不出目标）
+      const linkTarget = wasLink ? linkTargetOf(dst) : ''
       trashed = trashMove(dst, trashDir)
-      steps.push((wasLink ? '旧形态是链接，移入 ' : '同名但非同一文件，旧文件移入 ') + trashed)
+      if (wasLink) {
+        // 旧形态是链接：说明它原本指向哪里，便于用户判断被移走的是不是自己改过的版本
+        steps.push('旧形态是链接' + (linkTarget ? `（原本指向 ${linkTarget}）` : '') + '，移入 ' + trashed)
+      } else {
+        // 同名但不是同一个文件：把差异（字节数 + 修改时间）写进日志，用户才知道被移走的是不是自己改过的版本
+        const dstSide = describeSide(pe?.dstSize, pe?.dstMtime)
+        const srcSide = describeSide(pe?.srcSize, pe?.srcMtime)
+        steps.push(`同名但${describeContentSame(pe?.contentSame ?? false)}（目标端 ${dstSide}，vault 端 ${srcSide}），旧文件移入 ${trashed}`)
+      }
+      // 需要人工核对的（内容不同 / 目标端更新）才进 conflicts：内容没丢的不打扰用户。
+      // 旧形态是链接时同样适用 —— 链接指向的旧版本内容与 vault 不同，也是被移走的改动。
+      if (pe && planEntryNeedsManualCheck(pe)) {
+        const dstSide = describeSide(pe.dstSize, pe.dstMtime)
+        const srcSide = describeSide(pe.srcSize, pe.srcMtime)
+        // 两种 reason 分开写：内容不同 = 可能丢了改动（必须核对）；内容一致 = 改动没丢，
+        // 但目标端被单独写过（时间戳对不上），顺带让用户看一眼，别把「一致」误当成「从没动过」。
+        const reason = pe.contentSame
+          ? `内容与 vault 一致，但目标端修改时间更新（目标端 ${dstSide}，vault 端 ${srcSide}），目标端可能曾被单独改动`
+          : `内容与 vault 不一致（目标端 ${dstSide}，vault 端 ${srcSide}）`
+        conflicts.push({ file: f, reason, trashPath: trashed })
+      }
     }
     try {
       fs.mkdirSync(path.dirname(dst), { recursive: true })
@@ -255,12 +471,26 @@ export function repairAgentsDirHardlinks(vaultPath: string, agentsDir: string, o
   for (const e of dirEntries) {
     if (vaultFiles.includes(e.name)) continue
     const trashed = trashMove(path.join(agentsDir, e.name), trashDir)
-    steps.push('vault 没有的多余文件，移入 ' + trashed + ': ' + e.name)
+    const pe = planByFile.get(e.name)
+    const dstSide = describeSide(pe?.dstSize, pe?.dstMtime)
+    steps.push(`vault 没有的多余文件（${dstSide}），移入 ${trashed}: ${e.name}`)
+    // vault 里没有这个文件 = 用户自己加的（或已从 vault 删除）→ 一定要人工核对，否则等于静默丢文件
+    conflicts.push({
+      file: e.name,
+      reason: `vault 中没有这个文件（${dstSide}），可能是你自己新增的或已从 vault 删除`,
+      trashPath: trashed
+    })
   }
 
   const after = agentsDirStateOf(vaultPath, agentsDir)
   steps.push('修复后状态: ' + after.state + (after.note ? `（${after.note}）` : ''))
-  return { steps, state: after.state, ...(after.note ? { note: after.note } : {}) }
+  // conflicts 恒定返回数组（空数组 = 无需人工核对）：UI 与调用方无需区分「没有这个字段」和「没有冲突」
+  return {
+    steps,
+    state: after.state,
+    ...(after.note ? { note: after.note } : {}),
+    conflicts
+  }
 }
 
 /** 创建 junction（免管理员权限），target 用绝对路径 */

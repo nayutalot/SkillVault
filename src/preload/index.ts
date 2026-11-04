@@ -2,7 +2,6 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AgentsRepairResult,
   ApiHubAdapterId,
-  ApiHubAdapterInfo,
   ApiHubCurrentResult,
   ApiHubImportResult,
   ApiHubProfileInput,
@@ -119,8 +118,6 @@ export const api = {
   /** 版本中心：取消更新 job（终止进程树） */
   versionsCancel: (jobId: string): Promise<Result<{ cancelled: boolean }>> =>
     ipcRenderer.invoke('versions:cancel', { jobId }),
-  /** 接口中心：适配器目录（含可用性/字段定义/不可用原因） */
-  apihubAdapters: (): Promise<Result<{ adapters: ApiHubAdapterInfo[] }>> => ipcRenderer.invoke('apihub:adapters'),
   /** 接口中心：单适配器当前状态（脱敏；不可用适配器 available=false） */
   apihubCurrent: (adapterId: ApiHubAdapterId): Promise<Result<ApiHubCurrentResult>> =>
     ipcRenderer.invoke('apihub:current', { adapterId }),
@@ -178,7 +175,9 @@ export const api = {
   // ---------- 接口中心：动态目录 + 自定义供应商（Wave 2 追加；类型用 import() 内联，顶部 import 块不在本区可改范围） ----------
 
   /** 接口中心：动态目录（注册表里 active 且 enabled 的 agent；未支持的工具给 available:false 的说明卡）
-   *  degraded=true 表示注册表读不到、已回落内置静态目录。旧 apihubAdapters 仍可用，但拿不到 degraded/sigId。 */
+   *  degraded=true 表示注册表读不到、已回落内置静态目录。
+   *  这是 apihub:adapters 通道在 preload 桥上的唯一出口 —— 早期还有一个 apihubAdapters 别名指向同一通道，
+   *  两个入口返回结构不同（旧的少了 degraded/sigId），容易误用；现已合并为一个。 */
   apihubCatalog: (): Promise<Result<import('../shared/types').ApiHubCatalogResult>> =>
     ipcRenderer.invoke('apihub:adapters'),
   /** 接口中心：自定义供应商列表（密钥只回尾 4 位与长度） */

@@ -1,0 +1,789 @@
+{
+  "generatedBy": "scripts/count-prompt-chains.mjs",
+  "schemaVersion": 1,
+  "method": {
+    "humanInputsRaw": "人的输入（原始）：导出体中匹配 `### 提问 N（人的输入）` 的头部行数。头部识别不依赖代码围栏状态。",
+    "humanInputsDistinct": "人的输入（去重）：对每个提问块的 ```text 围栏内容做「去首尾空白后的精确文本去重」后的个数；导出体自述口径为「同一条人工输入在会话库中可能重复落库，已按内容去重后计数」。不做前缀或包含去重。",
+    "aiReplies": "AI 回复：匹配 `### 回应 N（AI 回复）` 的头部行数。正文为空的回复（无文本围栏）同样计入，因导出体中「一次回复 = 一个头部」。",
+    "toolCallsSummed": "工具调用总次数：所有回复头部中 `工具调用 K 次` 的 K 之和；头部无该段者按 0 计。",
+    "toolNamesListed": "工具名清单条目数：所有回复头部括号内列出的工具名个数之和（`（Bash、Read）` 计 2）。括号内是去重后的工具种类，K 是实际调用次数，故两者一般不等。",
+    "systemMessages": "系统消息：**Markdown 导出体不可复算**（derivable=false）。导出体只保留「提问」「回应」两类带角色标注的头部，框架注入消息在导出时已被剔除且未留下可数标记。脚本不猜数；若源会话库可用则给出旁证。",
+    "comparison": "比对口径：复算值与导出体「## 消息来源统计」表逐项比对；差异写入 mismatches 数组，不修改任何 Markdown。",
+    "scope": "只读脚本：不修改 docs/prompt-chains/*.md，不修改仓库其他文件；仅在默认模式下写出 docs/prompt-chain-stats.json。"
+  },
+  "chains": [
+    {
+      "file": "docs/prompt-chains/01-从零构建跨端技能库.md",
+      "title": "链一 · 从零构建跨端技能库",
+      "sessionId": "sess_97dec769-25c8-4eee-9150-2d8fd2aa15ce",
+      "humanInputsRaw": 22,
+      "humanInputsDistinct": 22,
+      "aiReplies": 266,
+      "toolCallsSummed": 306,
+      "toolNamesListed": 262,
+      "repliesWithToolHeader": 239,
+      "repliesWithoutToolHeader": 27,
+      "repliesWithEmptyBody": 64,
+      "distinctToolKinds": [
+        "Agent",
+        "AskUserQuestion",
+        "Bash",
+        "Edit",
+        "EnterPlanMode",
+        "ExitPlanMode",
+        "Read",
+        "Skill",
+        "TodoWrite",
+        "WebSearch",
+        "Write"
+      ],
+      "toolKindMismatches": [
+        {
+          "replyNumber": 2,
+          "toolCalls": 4,
+          "listedKinds": 2,
+          "kinds": "Agent、Bash"
+        },
+        {
+          "replyNumber": 2,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 2,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 4,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 4,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 8,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 8,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 9,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 10,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 10,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 11,
+          "toolCalls": 3,
+          "listedKinds": 2,
+          "kinds": "Read、Bash"
+        },
+        {
+          "replyNumber": 11,
+          "toolCalls": 3,
+          "listedKinds": 2,
+          "kinds": "Read、Bash"
+        },
+        {
+          "replyNumber": 11,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 11,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 12,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 14,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 14,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 14,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 14,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 15,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 16,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 16,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 16,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 17,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 17,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 17,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 17,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 17,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 19,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 19,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 19,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 20,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 21,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 21,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 22,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        }
+      ],
+      "humanInputsCountBasis": "导出体已按内容去重，raw 与 distinct 相同，且与自述数字一致。",
+      "systemMessages": {
+        "derivable": false,
+        "value": null,
+        "reason": "Markdown 导出体不可复算：导出体只保留「提问」「回应」两类带角色标注的头部，会话框架注入的消息在导出时已被剔除，正文中没有留下 <system-reminder>、「系统消息」标签或 role 字段等任何可计数的标记。因此脚本不猜测该数字，只在会话库可用时给出旁证。",
+        "statedInFile": 16,
+        "corroboration": {
+          "available": true,
+          "sessionId": "sess_97dec769-25c8-4eee-9150-2d8fd2aa15ce",
+          "dbPath": "C:\\Users\\sakuya\\.zcode\\cli\\db\\db.sqlite",
+          "method": "源会话库 message/part 表：role=user 且 (synthetic=true 或 metadata.visibility=model-only) 的消息计为框架注入的系统消息；其余 role=user 为人工输入（按完整文本精确去重）；role=assistant 且含 tool part 的计为带工具调用的回复。",
+          "injectedUserMessages": 16,
+          "injectedUserSources": {
+            "todo_reminder / visibility=model-only": 14,
+            "goal-continuation / visibility=model-only": 2
+          },
+          "plainUserMessages": 26,
+          "distinctHumanTexts": 22,
+          "assistantMessages": 279,
+          "assistantWithTool": 239,
+          "assistantTextOnly": 27,
+          "assistantNoTextNoTool": 13,
+          "assistantWithText": 202,
+          "assistantEmptyText": 77,
+          "toolParts": 306,
+          "distinctToolKindSum": 262,
+          "comparesWithMarkdown": {
+            "humanInputsDistinct": true,
+            "aiReplies": true,
+            "toolCalls": true,
+            "toolNamesListed": true,
+            "repliesWithEmptyBody": true
+          },
+          "note": "导出体省略了既无文本也无工具的助手消息（模型切换分隔线、被取消的模型请求），故源库 assistant 条数比导出体「回应」头部数略多；这不影响任何一项计数口径。"
+        }
+      },
+      "statedInFile": {
+        "humanInputs": 22,
+        "systemMessages": 16,
+        "aiReplies": 266,
+        "toolCalls": 306
+      },
+      "matchesStated": {
+        "humanInputs": true,
+        "humanInputsRaw": true,
+        "aiReplies": true,
+        "toolCalls": true,
+        "systemMessages": null
+      }
+    },
+    {
+      "file": "docs/prompt-chains/02-全量重审修复40个缺陷.md",
+      "title": "链二 · 全量重审并修复约 40 个缺陷",
+      "sessionId": "sess_a3db6015-3f97-4ab7-ade2-5cc70a23efb9",
+      "humanInputsRaw": 2,
+      "humanInputsDistinct": 2,
+      "aiReplies": 233,
+      "toolCallsSummed": 256,
+      "toolNamesListed": 231,
+      "repliesWithToolHeader": 231,
+      "repliesWithoutToolHeader": 2,
+      "repliesWithEmptyBody": 145,
+      "distinctToolKinds": [
+        "Agent",
+        "Bash",
+        "Edit",
+        "Read",
+        "TodoWrite",
+        "Write"
+      ],
+      "toolKindMismatches": [
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 6,
+          "listedKinds": 1,
+          "kinds": "Agent"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        }
+      ],
+      "humanInputsCountBasis": "导出体已按内容去重，raw 与 distinct 相同，且与自述数字一致。",
+      "systemMessages": {
+        "derivable": false,
+        "value": null,
+        "reason": "Markdown 导出体不可复算：导出体只保留「提问」「回应」两类带角色标注的头部，会话框架注入的消息在导出时已被剔除，正文中没有留下 <system-reminder>、「系统消息」标签或 role 字段等任何可计数的标记。因此脚本不猜测该数字，只在会话库可用时给出旁证。",
+        "statedInFile": 22,
+        "corroboration": {
+          "available": true,
+          "sessionId": "sess_a3db6015-3f97-4ab7-ade2-5cc70a23efb9",
+          "dbPath": "C:\\Users\\sakuya\\.zcode\\cli\\db\\db.sqlite",
+          "method": "源会话库 message/part 表：role=user 且 (synthetic=true 或 metadata.visibility=model-only) 的消息计为框架注入的系统消息；其余 role=user 为人工输入（按完整文本精确去重）；role=assistant 且含 tool part 的计为带工具调用的回复。",
+          "injectedUserMessages": 22,
+          "injectedUserSources": {
+            "todo_reminder / visibility=model-only": 22
+          },
+          "plainUserMessages": 2,
+          "distinctHumanTexts": 2,
+          "assistantMessages": 234,
+          "assistantWithTool": 231,
+          "assistantTextOnly": 2,
+          "assistantNoTextNoTool": 1,
+          "assistantWithText": 88,
+          "assistantEmptyText": 146,
+          "toolParts": 256,
+          "distinctToolKindSum": 231,
+          "comparesWithMarkdown": {
+            "humanInputsDistinct": true,
+            "aiReplies": true,
+            "toolCalls": true,
+            "toolNamesListed": true,
+            "repliesWithEmptyBody": true
+          },
+          "note": "导出体省略了既无文本也无工具的助手消息（模型切换分隔线、被取消的模型请求），故源库 assistant 条数比导出体「回应」头部数略多；这不影响任何一项计数口径。"
+        }
+      },
+      "statedInFile": {
+        "humanInputs": 2,
+        "systemMessages": 22,
+        "aiReplies": 233,
+        "toolCalls": 256
+      },
+      "matchesStated": {
+        "humanInputs": true,
+        "humanInputsRaw": true,
+        "aiReplies": true,
+        "toolCalls": true,
+        "systemMessages": null
+      }
+    },
+    {
+      "file": "docs/prompt-chains/03-跨机乱码全链路排查.md",
+      "title": "链三 · 跨机乱码全链路排查与修复",
+      "sessionId": "sess_4a8485ab-bc23-4e1d-b3e8-deec6fdae1ab",
+      "humanInputsRaw": 4,
+      "humanInputsDistinct": 4,
+      "aiReplies": 78,
+      "toolCallsSummed": 100,
+      "toolNamesListed": 74,
+      "repliesWithToolHeader": 73,
+      "repliesWithoutToolHeader": 5,
+      "repliesWithEmptyBody": 18,
+      "distinctToolKinds": [
+        "Agent",
+        "Bash",
+        "Edit",
+        "Read",
+        "TodoWrite",
+        "Write"
+      ],
+      "toolKindMismatches": [
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 5,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 4,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 4,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 4,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 1,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Bash"
+        },
+        {
+          "replyNumber": 2,
+          "toolCalls": 4,
+          "listedKinds": 1,
+          "kinds": "Agent"
+        },
+        {
+          "replyNumber": 3,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 3,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Edit"
+        }
+      ],
+      "humanInputsCountBasis": "导出体已按内容去重，raw 与 distinct 相同，且与自述数字一致。",
+      "systemMessages": {
+        "derivable": false,
+        "value": null,
+        "reason": "Markdown 导出体不可复算：导出体只保留「提问」「回应」两类带角色标注的头部，会话框架注入的消息在导出时已被剔除，正文中没有留下 <system-reminder>、「系统消息」标签或 role 字段等任何可计数的标记。因此脚本不猜测该数字，只在会话库可用时给出旁证。",
+        "statedInFile": 7,
+        "corroboration": {
+          "available": true,
+          "sessionId": "sess_4a8485ab-bc23-4e1d-b3e8-deec6fdae1ab",
+          "dbPath": "C:\\Users\\sakuya\\.zcode\\cli\\db\\db.sqlite",
+          "method": "源会话库 message/part 表：role=user 且 (synthetic=true 或 metadata.visibility=model-only) 的消息计为框架注入的系统消息；其余 role=user 为人工输入（按完整文本精确去重）；role=assistant 且含 tool part 的计为带工具调用的回复。",
+          "injectedUserMessages": 7,
+          "injectedUserSources": {
+            "goal-continuation / visibility=model-only": 1,
+            "todo_reminder / visibility=model-only": 6
+          },
+          "plainUserMessages": 4,
+          "distinctHumanTexts": 4,
+          "assistantMessages": 79,
+          "assistantWithTool": 73,
+          "assistantTextOnly": 5,
+          "assistantNoTextNoTool": 1,
+          "assistantWithText": 60,
+          "assistantEmptyText": 19,
+          "toolParts": 100,
+          "distinctToolKindSum": 74,
+          "comparesWithMarkdown": {
+            "humanInputsDistinct": true,
+            "aiReplies": true,
+            "toolCalls": true,
+            "toolNamesListed": true,
+            "repliesWithEmptyBody": true
+          },
+          "note": "导出体省略了既无文本也无工具的助手消息（模型切换分隔线、被取消的模型请求），故源库 assistant 条数比导出体「回应」头部数略多；这不影响任何一项计数口径。"
+        }
+      },
+      "statedInFile": {
+        "humanInputs": 4,
+        "systemMessages": 7,
+        "aiReplies": 78,
+        "toolCalls": 100
+      },
+      "matchesStated": {
+        "humanInputs": true,
+        "humanInputsRaw": true,
+        "aiReplies": true,
+        "toolCalls": true,
+        "systemMessages": null
+      }
+    },
+    {
+      "file": "docs/prompt-chains/04-Agent自适应发现.md",
+      "title": "链四 · Agent 自适应发现与注册表驱动改造",
+      "sessionId": "sess_61147419-eff9-4917-a3f5-d2a9eba85fa5",
+      "humanInputsRaw": 9,
+      "humanInputsDistinct": 9,
+      "aiReplies": 106,
+      "toolCallsSummed": 121,
+      "toolNamesListed": 104,
+      "repliesWithToolHeader": 99,
+      "repliesWithoutToolHeader": 7,
+      "repliesWithEmptyBody": 37,
+      "distinctToolKinds": [
+        "Agent",
+        "Bash",
+        "Edit",
+        "Read",
+        "Skill",
+        "TaskStop",
+        "TodoWrite",
+        "WebFetch",
+        "WebSearch",
+        "Write",
+        "mcp__node_repl__js"
+      ],
+      "toolKindMismatches": [
+        {
+          "replyNumber": 1,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "WebSearch"
+        },
+        {
+          "replyNumber": 4,
+          "toolCalls": 4,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 4,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 4,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 4,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Agent"
+        },
+        {
+          "replyNumber": 6,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 6,
+          "toolCalls": 3,
+          "listedKinds": 1,
+          "kinds": "Read"
+        },
+        {
+          "replyNumber": 6,
+          "toolCalls": 4,
+          "listedKinds": 1,
+          "kinds": "Edit"
+        },
+        {
+          "replyNumber": 6,
+          "toolCalls": 2,
+          "listedKinds": 1,
+          "kinds": "Edit"
+        }
+      ],
+      "humanInputsCountBasis": "导出体已按内容去重，raw 与 distinct 相同，且与自述数字一致。",
+      "systemMessages": {
+        "derivable": false,
+        "value": null,
+        "reason": "Markdown 导出体不可复算：导出体只保留「提问」「回应」两类带角色标注的头部，会话框架注入的消息在导出时已被剔除，正文中没有留下 <system-reminder>、「系统消息」标签或 role 字段等任何可计数的标记。因此脚本不猜测该数字，只在会话库可用时给出旁证。",
+        "statedInFile": 10,
+        "corroboration": {
+          "available": true,
+          "sessionId": "sess_61147419-eff9-4917-a3f5-d2a9eba85fa5",
+          "dbPath": "C:\\Users\\sakuya\\.zcode\\cli\\db\\db.sqlite",
+          "method": "源会话库 message/part 表：role=user 且 (synthetic=true 或 metadata.visibility=model-only) 的消息计为框架注入的系统消息；其余 role=user 为人工输入（按完整文本精确去重）；role=assistant 且含 tool part 的计为带工具调用的回复。",
+          "injectedUserMessages": 10,
+          "injectedUserSources": {
+            "todo_reminder / visibility=model-only": 9,
+            "background_task / visibility=model-only": 1
+          },
+          "plainUserMessages": 9,
+          "distinctHumanTexts": 9,
+          "assistantMessages": 108,
+          "assistantWithTool": 99,
+          "assistantTextOnly": 7,
+          "assistantNoTextNoTool": 2,
+          "assistantWithText": 69,
+          "assistantEmptyText": 39,
+          "toolParts": 121,
+          "distinctToolKindSum": 104,
+          "comparesWithMarkdown": {
+            "humanInputsDistinct": true,
+            "aiReplies": true,
+            "toolCalls": true,
+            "toolNamesListed": true,
+            "repliesWithEmptyBody": true
+          },
+          "note": "导出体省略了既无文本也无工具的助手消息（模型切换分隔线、被取消的模型请求），故源库 assistant 条数比导出体「回应」头部数略多；这不影响任何一项计数口径。"
+        }
+      },
+      "statedInFile": {
+        "humanInputs": 9,
+        "systemMessages": 10,
+        "aiReplies": 106,
+        "toolCalls": 121
+      },
+      "matchesStated": {
+        "humanInputs": true,
+        "humanInputsRaw": true,
+        "aiReplies": true,
+        "toolCalls": true,
+        "systemMessages": null
+      }
+    }
+  ],
+  "totals": {
+    "humanInputsRaw": 37,
+    "humanInputsDistinct": 37,
+    "aiReplies": 683,
+    "toolCallsSummed": 783,
+    "toolNamesListed": 671,
+    "repliesWithToolHeader": 642,
+    "repliesWithEmptyBody": 264,
+    "statedInFile": {
+      "humanInputs": 37,
+      "systemMessages": 55,
+      "aiReplies": 683,
+      "toolCalls": 783
+    },
+    "matchesStated": {
+      "humanInputs": true,
+      "aiReplies": true,
+      "toolCalls": true,
+      "systemMessages": null
+    }
+  },
+  "mismatches": [],
+  "undetermined": [
+    {
+      "metric": "systemMessages",
+      "scope": "全部 4 条会话导出",
+      "reason": "导出体不承载系统消息的可数标记，无法从 Markdown 复算；脚本标注 derivable=false，不猜数。",
+      "statedInFile": 55,
+      "corroborationAvailable": true,
+      "corroborationMatches": true
+    }
+  ]
+}

@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentScan, AppSettings, LinkState, ScanReport, SyncResult, WslScanPayload } from '../../../shared/types'
+import type {
+  AgentScan,
+  AgentsRepairResult,
+  AppSettings,
+  LinkState,
+  ScanReport,
+  SyncResult,
+  WslScanPayload
+} from '../../../shared/types'
 import { wslVaultSkillDir } from '../../../shared/paths'
 import type { AgentMdInfo } from '../../../preload'
 import type { Notify, PageName } from '../App'
+import { SyncSteps, syncBannerText, syncHeadline } from '../components/sync-steps'
 
 const SYMBOL: Record<LinkState, string> = {
   linked: '✓',
@@ -72,7 +81,13 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
   const [agentMenu, setAgentMenu] = useState<AgentScan | null>(null)
   const [agentDetail, setAgentDetail] = useState<{ fileName: string; info: AgentMdInfo } | null>(null)
   const [pendingRepair, setPendingRepair] = useState<AgentScan | null>(null)
-  const [repairRes, setRepairRes] = useState<{ agent: string; steps: string[]; state: string } | null>(null)
+  // conflicts 为修复时「被替换 / 被移走且可能含用户未合入 vault 的改动」的条目（需人工核对）
+  const [repairRes, setRepairRes] = useState<{
+    agent: string
+    steps: string[]
+    state: string
+    conflicts?: AgentsRepairResult['conflicts']
+  } | null>(null)
   const [syncRes, setSyncRes] = useState<SyncResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [wslPhase, setWslPhase] = useState<WslPhase>(null)
@@ -140,10 +155,14 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
       return
     }
     setSyncRes(r.data)
-    notify(
-      r.data.conflicts.length ? 'err' : 'ok',
-      r.data.conflicts.length ? `同步完成，但有 ${r.data.conflicts.length} 个冲突需要处理` : 'Windows 和 WSL 都已同步'
-    )
+    // 中止 ≠ 成功：只有既没中止又没有冲突才提示成功
+    if (r.data.aborted) {
+      notify('err', r.data.abortReason || '同步已中止，详情见下方日志')
+    } else if (r.data.conflicts.length) {
+      notify('err', `同步完成，但有 ${r.data.conflicts.length} 个冲突需要处理`)
+    } else {
+      notify('ok', 'Windows 和 WSL 都已同步')
+    }
   }
 
   const cellAction = async (fn: () => Promise<{ ok: boolean; error?: string }>): Promise<void> => {
@@ -250,9 +269,18 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
       notify('err', r.error || '修复失败')
       return
     }
-    setRepairRes({ agent: a.name, steps: r.data.steps, state: r.data.state })
+    setRepairRes({
+      agent: a.name,
+      steps: r.data.steps,
+      state: r.data.state,
+      ...(r.data.conflicts ? { conflicts: r.data.conflicts } : {})
+    })
     if (r.data.state === 'linked') notify('ok', a.name + ' 的子智能体目录已重建（' + (r.data.note ?? '已建好快捷方式') + '）')
     else notify('err', '重建后仍未生效（当前状态：' + r.data.state + '），详见步骤日志')
+    // 有冲突时额外提醒：旧文件已被移入回收目录，里面可能有还没合回技能库的改动
+    if (r.data.conflicts?.length) {
+      notify('err', `有 ${r.data.conflicts.length} 个文件与技能库不一致，已移入回收目录，请人工核对后再决定是否保留`)
+    }
     await load()
   }
 
@@ -474,6 +502,18 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
                   关闭
                 </button>
               </h4>
+              {/* 冲突提示：被替换 / 被移走的旧文件可能含用户尚未合入技能库的改动，必须显式告知 */}
+              {repairRes.conflicts && repairRes.conflicts.length > 0 && (
+                <div className="banner warn">
+                  <div>以下文件与 vault 不一致，已移入回收目录，请人工核对后再决定是否保留：</div>
+                  {repairRes.conflicts.map((c, i) => (
+                    <div key={i} className="step-line">
+                      {c.file}：{c.reason}
+                      {c.trashPath ? `（回收位置：${c.trashPath}）` : ''}
+                    </div>
+                  ))}
+                </div>
+              )}
               <pre className="conflict">{repairRes.steps.join('\n')}</pre>
             </div>
           )}
@@ -760,16 +800,12 @@ export default function Dashboard({ notify, goTo }: Props): React.JSX.Element {
       )}
 
       {syncRes && (
-        <div className={`card ${syncRes.conflicts.length ? 'card-err' : ''}`}>
-          <h3>最近一次同步（{syncRes.conflicts.length ? '有冲突' : '成功'}）</h3>
-          {syncRes.steps.map((s, i) => (
-            <div key={i} className={`step ${s.ok ? 'ok' : 'fail'}`}>
-              <span className="step-side">{s.side === 'windows' ? 'Win' : 'WSL'}</span>
-              <span className="step-cmd">{s.cmd}</span>
-              <span className={`step-badge ${s.ok ? 'ok' : 'fail'}`}>{s.ok ? 'OK' : '失败'}</span>
-              {s.detail && <pre className="step-detail">{s.detail}</pre>}
-            </div>
-          ))}
+        <div className={`card ${syncRes.aborted || syncRes.conflicts.length ? 'card-err' : ''}`}>
+          <h3>最近一次同步（{syncHeadline(syncRes)}）</h3>
+          {syncBannerText(syncRes) && (
+            <div className={`banner ${syncRes.aborted ? 'err' : 'warn'}`}>{syncBannerText(syncRes)}</div>
+          )}
+          <SyncSteps steps={syncRes.steps} />
           {syncRes.conflicts.length > 0 && (
             <div>
               <h4>冲突的原始输出（程序不会强行覆盖，请按提示人工处理）</h4>

@@ -38,7 +38,7 @@ import { applyFix, runDoctor } from './doctor'
 import { isAgentActive, parseRegistry, defaultRegistry, REGISTRY_VERSION } from '../shared/registry'
 import { refreshRegistry, setAgentEnabled } from './agentDiscover'
 import type { AgentDiscoverReport } from '../shared/agentSignatures'
-import { git } from './git'
+import { gitAsync } from './git'
 import { WSL_VAULT, wslUncSkillDir } from '../shared/paths'
 import { decodeTextBuffer } from '../shared/textDecode'
 import {
@@ -71,7 +71,13 @@ import {
   type KimiSealer
 } from './kimi/profiles'
 import { API_HUB_CATALOG, apihubImportCurrent, apihubReadCurrent, apihubSwitch, validateHubFields, type ApiHubDeps } from './apihub'
-import { deleteHubProfile, hubProfileView, listHubViews, loadHubStore, upsertHubProfile } from './apihub/store'
+import { deleteHubProfile, hubDecryptKey, hubProfileView, listHubViews, loadHubStore, upsertHubProfile, findCustomProvider } from './apihub/store'
+// 目录合成与可见性过滤在文件顶部静态引入：这两个模块只依赖 shared/ 与彼此，不反向依赖 ipc.ts，
+// 无循环依赖风险。早期用 removeHandler + handle 覆盖旧实现是并发协作期的权宜之计 ——
+// 「先注册旧 handler、再 remove 再注册」会让同一个通道在文件里出现两次，读者难以判断哪个生效；
+// 改为单一注册点后，通道清单与 preload 桥一一对应，也便于静态核查。
+import { buildApiHubCatalog } from './apihub/adapters'
+import { versionCatalogFromDisk, visibleVersionIds } from './versionCenter/visibility'
 import type { ApiHubAdapterId, ApiHubImportResult, ApiHubProfileInput, ApiHubProfilesResult } from '../shared/types'
 import {
   containerAction,
@@ -272,9 +278,9 @@ export function registerIpc(): void {
   )
 
   ipcMain.handle('import:run', (_e, arg: { sourceDir: string; dryRun: boolean }) =>
-    envelope(() => {
+    envelopeAsync(async () => {
       const s = loadSettings(settingsDir())
-      const r = executeImport(arg.sourceDir, s.vaultPath, { dryRun: arg.dryRun })
+      const r = await executeImport(arg.sourceDir, s.vaultPath, { dryRun: arg.dryRun })
       return { plan: r as ImportPlan & { steps: string[] } }
     })
   )
@@ -318,7 +324,7 @@ export function registerIpc(): void {
   ipcMain.handle('registry:save', (_e, reg: Registry) =>
     envelopeAsync(async () =>
       // 与 syncAll/syncToRemote 共用互斥：registry commit 可能落在 sync 的 companion await 窗口内，并发动 git 会互相踩
-      withSyncLock(() => {
+      withSyncLock(async () => {
         const s = loadSettings(settingsDir())
         const { corrupt } = readRegistry(s.vaultPath)
         if (corrupt) {
@@ -330,9 +336,9 @@ export function registerIpc(): void {
         fs.mkdirSync(s.vaultPath, { recursive: true })
         fs.writeFileSync(file, JSON.stringify(check.registry, null, 2) + '\n', 'utf8')
         if (fs.existsSync(path.join(s.vaultPath, '.git'))) {
-          git(s.vaultPath, ['add', 'registry.json'])
-          const st = git(s.vaultPath, ['status', '--porcelain'])
-          if (st.stdout.trim()) git(s.vaultPath, ['commit', '-m', 'skillvault: update registry'])
+          await gitAsync(s.vaultPath, ['add', 'registry.json'])
+          const st = await gitAsync(s.vaultPath, ['status', '--porcelain'])
+          if (st.stdout.trim()) await gitAsync(s.vaultPath, ['commit', '-m', 'skillvault: update registry'])
         }
         return check.registry
       })
@@ -534,15 +540,27 @@ export function registerIpc(): void {
     }
   }
 
-  /** arg.useCache=true 只读缓存（秒回，UI 先渲染上次结果）；arg.id 指定单条重查；无 arg 跑全量实时检查 */
-  ipcMain.handle('versions:checkAll', (_e, arg?: { useCache?: boolean; id?: string }) =>
+  /** arg.useCache=true 只读缓存（秒回，UI 先渲染上次结果）；arg.id 指定单条重查；无 arg 跑全量实时检查。
+   *  可见集（哪些工具值得检查）由 versionCenter/visibility 决定：默认只查注册表里 active+enabled 的条目，
+   *  includeHidden=true 或用户开了「显示全部」→ 查全部。 */
+  ipcMain.handle('versions:checkAll', (_e, arg?: { useCache?: boolean; id?: string; includeHidden?: boolean }) =>
     envelopeAsync(async () => {
-      if (arg?.id) return runVersionCheckSingle(String(arg.id), vcDeps())
+      const catalog = versionCatalogFromDisk({
+        vaultPath: loadSettings(settingsDir()).vaultPath,
+        userDataDir: app.getPath('userData'),
+        fsMod: fs
+      })
+      const ids = arg?.includeHidden === true || catalog.showHidden ? null : visibleVersionIds(catalog)
+      if (arg?.id) return runVersionCheckSingle(String(arg.id), { ...vcDeps(), visibleIds: ids })
       if (arg?.useCache) {
         const cached = readVersionCache(vcDeps().cacheFile)
-        if (cached) return { ...cached, stale: true, reason: '来自缓存' }
+        if (cached) {
+          // 缓存里可能还有上次"显示全部"留下的隐藏条目：按当前可见集过滤，UI 不必再判一次
+          const statuses = ids ? cached.statuses.filter((st) => ids.includes(st.id)) : cached.statuses
+          return { ...cached, statuses, stale: true, reason: '来自缓存' }
+        }
       }
-      return runVersionCheckAll(vcDeps())
+      return runVersionCheckAll({ ...vcDeps(), visibleIds: ids })
     })
   )
 
@@ -566,8 +584,6 @@ export function registerIpc(): void {
     return { homeDir: os.homedir(), userDataDir: settingsDir(), sealer: kimiSealer, fsMod: fs }
   }
 
-  ipcMain.handle('apihub:adapters', () => envelope(() => ({ adapters: API_HUB_CATALOG })))
-
   ipcMain.handle('apihub:current', (_e, arg: { adapterId: ApiHubAdapterId }) =>
     envelopeAsync(async () => {
       const info = API_HUB_CATALOG.find((a) => a.id === arg?.adapterId)
@@ -580,17 +596,6 @@ export function registerIpc(): void {
     envelopeAsync(async (): Promise<ApiHubProfilesResult> => {
       const store = loadHubStore(settingsDir(), fs)
       return { profiles: listHubViews(store, arg.adapterId, kimiSealer), activeId: store.activeByAdapter[arg.adapterId] ?? null }
-    })
-  )
-
-  ipcMain.handle('apihub:save', (_e, arg: { input: ApiHubProfileInput; apiKeyPlain: string }) =>
-    envelopeAsync(async () => {
-      const input = arg?.input
-      if (!input || !API_HUB_CATALOG.find((a) => a.id === input.adapterId)?.available) throw new Error('未知或不可用适配器')
-      const err = validateHubFields(input.adapterId, input.fields ?? {}, Boolean(String(arg.apiKeyPlain ?? '').trim()))
-      if (err) throw new Error(err)
-      const saved = upsertHubProfile(settingsDir(), input, String(arg.apiKeyPlain ?? ''), kimiSealer, fs)
-      return hubProfileView(saved, kimiSealer)
     })
   )
 
@@ -693,16 +698,15 @@ export function registerIpc(): void {
 
   // ===== REGION-IPC-APIHUB（并发子代理在下方追加 ipcMain.handle，勿改本行及以上内容） =====
 
-  // ---------- 接口中心：目录动态合成 + 自定义供应商（Wave 2 追加区） ----------
-  // 共享文件禁止改标记行以上，而 apihub:adapters / apihub:save / versions:checkAll 的旧实现注册在上方
-  // （读静态目录、无可见性过滤），这里用 removeHandler + handle 在同一通道上换成动态实现 —— 通道名与
-  // 返回结构保持向后兼容（只加字段不删字段）。新模块一律 await import()：文件顶部 import 块不在本区可改范围。
+  // ---------- 接口中心：目录动态合成 + 自定义供应商 ----------
+  // apihub:adapters / apihub:save / versions:checkAll 三个通道的唯一注册点已上移到各自所属区块
+  // （文件顶部的静态 import 让动态实现可以直接调用，无需 removeHandler + handle 覆盖）。
+  // 通道名与返回结构保持向后兼容（只加字段不删字段）。
 
-  /** 目录 = 注册表（active 且 enabled）× 实现矩阵；注册表读不到回落内置静态目录（degraded=true） */
-  ipcMain.removeHandler('apihub:adapters')
+  /** 目录 = 注册表（active 且 enabled）× 实现矩阵；注册表读不到回落内置静态目录（degraded=true）。
+   *  返回结构与旧静态实现保持向后兼容（只加字段不删字段）。 */
   ipcMain.handle('apihub:adapters', () =>
     envelopeAsync(async () => {
-      const { buildApiHubCatalog } = await import('./apihub/adapters')
       return buildApiHubCatalog({ vaultPath: loadSettings(settingsDir()).vaultPath, fsMod: fs })
     })
   )
@@ -765,10 +769,9 @@ export function registerIpc(): void {
   )
 
   /**
-   * 保存档案：与旧实现同规矩（校验 + seal + 脱敏返回），额外支持 apiKeyFromProviderId ——
+   * 保存档案：校验 + seal + 脱敏返回，额外支持 apiKeyFromProviderId ——
    * 密钥留空且指定了自定义供应商时，直接用该供应商的密钥（明文不经过 IPC，渲染层也无需回显）。
    */
-  ipcMain.removeHandler('apihub:save')
   ipcMain.handle(
     'apihub:save',
     (_e, arg: { input: import('../shared/types').ApiHubProfileSaveInput; apiKeyPlain: string }) =>
@@ -780,7 +783,6 @@ export function registerIpc(): void {
         const err = validateHubFields(input.adapterId, input.fields ?? {}, Boolean(apiKeyPlain.trim()) || Boolean(fromProvider))
         if (err) throw new Error(err)
         if (!apiKeyPlain.trim() && fromProvider) {
-          const { findCustomProvider, hubDecryptKey } = await import('./apihub/store')
           const p = findCustomProvider(loadHubStore(settingsDir(), fs), fromProvider)
           if (!p) throw new Error('找不到自定义供应商: ' + fromProvider)
           // 明文只在主进程内存里存在一瞬间，随即被 upsertHubProfile seal
@@ -822,29 +824,7 @@ export function registerIpc(): void {
     })
   )
 
-  /** 版本检查：默认只遍历可见条目（没检测到的工具不查，省时间也少弹失败）；includeHidden 或已开「显示全部」→ 全部 */
-  ipcMain.removeHandler('versions:checkAll')
-  ipcMain.handle('versions:checkAll', (_e, arg?: { useCache?: boolean; id?: string; includeHidden?: boolean }) =>
-    envelopeAsync(async () => {
-      const { versionCatalogFromDisk, visibleVersionIds } = await import('./versionCenter/visibility')
-      const catalog = versionCatalogFromDisk({
-        vaultPath: loadSettings(settingsDir()).vaultPath,
-        userDataDir: app.getPath('userData'),
-        fsMod: fs
-      })
-      const ids = arg?.includeHidden === true || catalog.showHidden ? null : visibleVersionIds(catalog)
-      if (arg?.id) return runVersionCheckSingle(String(arg.id), { ...vcDeps(), visibleIds: ids })
-      if (arg?.useCache) {
-        const cached = readVersionCache(vcDeps().cacheFile)
-        if (cached) {
-          // 缓存里可能还有上次"显示全部"留下的隐藏条目：按当前可见集过滤，UI 不必再判一次
-          const statuses = ids ? cached.statuses.filter((st) => ids.includes(st.id)) : cached.statuses
-          return { ...cached, statuses, stale: true, reason: '来自缓存' }
-        }
-      }
-      return runVersionCheckAll({ ...vcDeps(), visibleIds: ids })
-    })
-  )
+  /** 版本中心：可见性（按注册表自动隐藏未检测到的工具）+ 固定显示 ---------- */
 
   // ===== REGION-IPC-IMPORT（并发子代理在下方追加 ipcMain.handle，勿改本行及以上内容） =====
 

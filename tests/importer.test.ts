@@ -131,15 +131,15 @@ describe('planImport', () => {
 })
 
 describe('executeImport', () => {
-  it('干跑不产生任何修改', () => {
-    const r = executeImport(src, vault, { dryRun: true, commit: false })
+  it('干跑不产生任何修改', async () => {
+    const r = await executeImport(src, vault, { dryRun: true, commit: false })
     expect(r.steps.every((s) => s.startsWith('[干跑]'))).toBe(true)
     expect(fs.existsSync(src)).toBe(true)
     expect(fs.existsSync(path.join(vault, 'skills', 'my-skill'))).toBe(false)
   })
 
-  it('实跑：字节保真、原目录删除、junction 建立', () => {
-    const r = executeImport(src, vault, { commit: false })
+  it('实跑：字节保真、原目录删除、junction 建立', async () => {
+    const r = await executeImport(src, vault, { commit: false })
     expect(r.ok).toBe(true)
     const target = path.join(vault, 'skills', 'my-skill')
     // 字节保真
@@ -152,12 +152,12 @@ describe('executeImport', () => {
     expect(fs.readFileSync(path.join(src, 'SKILL.md'), 'utf8')).toContain('My Skill')
   })
 
-  it('源是链接：导入真身、仅删链接本身、重建为指向 vault 的链接', () => {
+  it('源是链接：导入真身、仅删链接本身、重建为指向 vault 的链接', async () => {
     const real = path.join(tmp, 'real-body')
     fs.renameSync(src, real)
     const link = path.join(tmp, 'link-skill')
     createJunction(real, link)
-    const r = executeImport(link, vault, { commit: false })
+    const r = await executeImport(link, vault, { commit: false })
     expect(r.sourceIsLink).toBe(true)
     // 真身原样保留（仅删了链接本身）
     expect(fs.existsSync(path.join(real, 'SKILL.md'))).toBe(true)
@@ -167,9 +167,9 @@ describe('executeImport', () => {
     expect(getLinkState(link, path.join(vault, 'skills', 'real-body'))).toBe('linked')
   })
 
-  it('vault 冲突时抛错且源目录不动', () => {
+  it('vault 冲突时抛错且源目录不动', async () => {
     fs.mkdirSync(path.join(vault, 'skills', 'my-skill'))
-    expect(() => executeImport(src, vault, { commit: false })).toThrow(/已存在同名/)
+    await expect(executeImport(src, vault, { commit: false })).rejects.toThrow(/已存在同名/)
     expect(lstatSafe(src)?.isSymbolicLink()).toBe(false)
     expect(fs.existsSync(path.join(src, 'SKILL.md'))).toBe(true)
   })

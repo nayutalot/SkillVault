@@ -1,0 +1,1065 @@
+{
+  "source": ".mimosa/reports/*.json",
+  "extractedBy": "scripts/extract-alerts.mjs",
+  "reportFiles": 27,
+  "rawFindingRecords": 60,
+  "uniqueAlerts": 55,
+  "byCategory": {
+    "命令注入": 16,
+    "路径穿越": 8,
+    "弱随机数": 5,
+    "manifest": 14,
+    "硬编码凭据": 12
+  },
+  "bySeverity": {
+    "high": 41,
+    "low": 14
+  },
+  "alerts": [
+    {
+      "findingId": "mimosa-0e98893274e2907edf9f411b",
+      "file": "src/main/versionCenter/versionCompare.ts",
+      "inRepo": true,
+      "line": 56,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 2,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-08d975061df2528098bf7126",
+      "file": "tests/versioncenter-github.test.ts",
+      "inRepo": true,
+      "line": 287,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 2,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-70f53d5198877731c4e3d0af",
+      "file": "tests/versioncenter-jobs.test.ts",
+      "inRepo": true,
+      "line": 160,
+      "category": "弱随机数",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": true,
+      "occurrences": 2,
+      "sessions": [
+        "12065a10"
+      ],
+      "firstSeen": "2026-09-16",
+      "lastSeen": "2026-09-16",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-d51828daa0f4afb4c99c8792",
+      "file": "tests/versioncenter-jobs.test.ts",
+      "inRepo": true,
+      "line": 96,
+      "category": "弱随机数",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": true,
+      "occurrences": 2,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-2f035b89a6bd7d66691c7173",
+      "file": "tests/winlinks-skillmd.test.ts",
+      "inRepo": true,
+      "line": 25,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 2,
+      "sessions": [
+        "4a8485ab"
+      ],
+      "firstSeen": "2026-10-03",
+      "lastSeen": "2026-10-03",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-f2765524777f270ff26e943f",
+      "file": "C:/Users/sakuya/AppData/Local/Temp/fix_rules.py",
+      "inRepo": false,
+      "line": 29,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "00804984"
+      ],
+      "firstSeen": "2026-11-03",
+      "lastSeen": "2026-11-03",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-4a36a2a055f71b2ba065e89f",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 18,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-0bcd8e5d7ad47827bae6c7c7",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 19,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-626d4f7dc300edf83b9dfa0e",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 22,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-96710f7ee638cd15ee095ba9",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 23,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-b7049440097c1f44529cb5f3",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 24,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-c98eb1fffc28f1aab49f4827",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 25,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-ddcdf3a6a8375f79f6bda2b5",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 26,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-94041445258e6588a697d017",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 27,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-96b6ee34beab896fc125d7af",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 28,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-3ee682e55b8ad649ab9e633e",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 29,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-91377ef455f343da98ebf403",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 30,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-4506e0319fd96ab0ab8a8d39",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 31,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-e51f3f0ab01271d1ab49b973",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 32,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-f8f4ab33a910d448d9a7b82c",
+      "file": "package.json",
+      "inRepo": true,
+      "line": 33,
+      "category": "manifest",
+      "severity": "low",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-12ae9b5d493deb99ef06d4fe",
+      "file": "scripts/kimi-smoke-readonly.ts",
+      "inRepo": true,
+      "line": 21,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-bb853d92c2c2e5ce8464cd96",
+      "file": "scripts/kimi-switch-drill.ts",
+      "inRepo": true,
+      "line": 50,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-a057f8efa329e8966d781b51",
+      "file": "scripts/smoke-apihub.ts",
+      "inRepo": true,
+      "line": 32,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-4ebfe3140ea77c42fd563c56",
+      "file": "src/main/kimi/tomlEdit.ts",
+      "inRepo": true,
+      "line": 104,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-7c8a9a5bd47879c4332736e8",
+      "file": "src/main/kimi/tomlEdit.ts",
+      "inRepo": true,
+      "line": 112,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-aaabf1648132931ff13385bc",
+      "file": "src/main/kimi/tomlEdit.ts",
+      "inRepo": true,
+      "line": 155,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-61683f1165913e87c8e02bb4",
+      "file": "src/main/kimi/tomlEdit.ts",
+      "inRepo": true,
+      "line": 166,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-9a143f8a76b16432367917aa",
+      "file": "src/main/kimi/tomlEdit.ts",
+      "inRepo": true,
+      "line": 184,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-72f6299de1dce5126e470a50",
+      "file": "src/main/remote.ts",
+      "inRepo": true,
+      "line": 14,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-525091736c2ad88fa27811a2",
+      "file": "src/main/versionCenter/exec.ts",
+      "inRepo": true,
+      "line": 31,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-0ab80a9a9ed7249ceeeb3246",
+      "file": "src/main/vscode.ts",
+      "inRepo": true,
+      "line": 78,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-863b93b6e73fab8fa8be8510",
+      "file": "src/main/vscode.ts",
+      "inRepo": true,
+      "line": 97,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-fccb541803c05b06104958f7",
+      "file": "src/main/wslBridge.ts",
+      "inRepo": true,
+      "line": 15,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-4d1a211d97f6528e94f7e463",
+      "file": "src/main/wslmon/index.ts",
+      "inRepo": true,
+      "line": 107,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-5ebc4f44fe13093d29488fc6",
+      "file": "src/renderer/src/pages/WslPage.tsx",
+      "inRepo": true,
+      "line": 88,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-20f42bd177688d383711cedb",
+      "file": "src/shared/frontmatter.ts",
+      "inRepo": true,
+      "line": 75,
+      "category": "命令注入",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-a011c4ba68d0cbdb16d53397",
+      "file": "tests/apihub-kimi.test.ts",
+      "inRepo": true,
+      "line": 22,
+      "category": "弱随机数",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": true,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-dbc6af46b71aa9000351308c",
+      "file": "tests/apihub-kimi.test.ts",
+      "inRepo": true,
+      "line": 50,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-3cf046eb2d1807a77ab6c6a2",
+      "file": "tests/apihub-providers.test.ts",
+      "inRepo": true,
+      "line": 27,
+      "category": "弱随机数",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": true,
+      "occurrences": 1,
+      "sessions": [
+        "61147419"
+      ],
+      "firstSeen": "2026-10-07",
+      "lastSeen": "2026-10-07",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-52b04ff33a46568fc47dae31",
+      "file": "tests/apihub-runtime.test.ts",
+      "inRepo": true,
+      "line": 28,
+      "category": "弱随机数",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": true,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-3a5b9c836e92b5ea94188706",
+      "file": "tests/apihub-runtime.test.ts",
+      "inRepo": true,
+      "line": 59,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-b495f0bb7fb443fe8538bad4",
+      "file": "tests/helpers/kimi-sample.ts",
+      "inRepo": true,
+      "line": 32,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-6d75287f44d0103e42e9af18",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 22,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-97fb56e1cb198749178f82a0",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 25,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-c8aed9261dac9acb60637e61",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 48,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-0437c2f1f7b3ec63f7f646a8",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 54,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-03566957d924e14ecab34184",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 58,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-66541045ce821767c8a3e88d",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 59,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-490429d2f80b76305e70ac73",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 60,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-2d56453ae17898ddf8aa3e22",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 66,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-551f209559a626d3eb721a9f",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 69,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-ef15eb06bac756a5ab4e2d39",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 73,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-6f9d904e27c5b45bc51287b4",
+      "file": "tests/kimi-toml.test.ts",
+      "inRepo": true,
+      "line": 75,
+      "category": "硬编码凭据",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "candidate"
+      ]
+    },
+    {
+      "findingId": "mimosa-7e0249a44afca2a013e12af9",
+      "file": "tests/versioncenter-native-arp.test.ts",
+      "inRepo": true,
+      "line": 78,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-01",
+      "lastSeen": "2026-09-01",
+      "statuses": [
+        "blocked"
+      ]
+    },
+    {
+      "findingId": "mimosa-050d91b2e4265d01fbe2f6c5",
+      "file": "tests/winlinks-agentsdir.test.ts",
+      "inRepo": true,
+      "line": 40,
+      "category": "路径穿越",
+      "severity": "high",
+      "kind": "semgrep",
+      "advisory": false,
+      "occurrences": 1,
+      "sessions": [
+        "97dec769"
+      ],
+      "firstSeen": "2026-09-02",
+      "lastSeen": "2026-09-02",
+      "statuses": [
+        "blocked"
+      ]
+    }
+  ]
+}

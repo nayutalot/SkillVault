@@ -46,8 +46,16 @@ export type AgentScan = {
   agentFiles?: string[]
 }
 
-/** agents:repair 返回：steps 为修复步骤日志（可直接展示），state/note 为修复后重扫结果 */
-export type AgentsRepairResult = { steps: string[]; state: LinkState; note?: string }
+/** agents:repair 返回：steps 为修复步骤日志（可直接展示），state/note 为修复后重扫结果。
+ *  conflicts 为本次修复中「被替换 / 被移走且可能含用户未合入 vault 的改动」的条目：
+ *  修复行为本身不变（仍然移入回收目录），但必须把差异证据一并交回 UI，由用户人工核对。 */
+export type AgentsRepairResult = {
+  steps: string[]
+  state: LinkState
+  note?: string
+  /** 本次修复中被替换/移走的文件里，内容与 vault 不一致或比 vault 更新的条目（需人工核对） */
+  conflicts?: Array<{ file: string; reason: string; trashPath?: string }>
+}
 
 export type ScanReport = { skills: SkillMeta[]; agents: AgentScan[]; vaultOk: boolean }
 
@@ -57,9 +65,23 @@ export type WslScanPayload = { ts: number; agents: AgentScan[]; skills: SkillMet
 /** scan:wsl 返回：stale=true 表示本次 companion 不可达/超时，report 来自缓存 */
 export type ScanWslData = { report: WslScanPayload | null; stale: boolean; reason?: string }
 
-export type SyncStep = { side: 'windows' | 'wsl'; cmd: string; ok: boolean; detail: string }
+export type SyncStep = {
+  side: 'windows' | 'wsl'
+  cmd: string
+  ok: boolean
+  detail: string
+  /** true = 该步骤因前序致命失败被跳过（未实际执行） */
+  skipped?: boolean
+}
 
-export type SyncResult = { steps: SyncStep[]; conflicts: string[] }
+export type SyncResult = {
+  steps: SyncStep[]
+  conflicts: string[]
+  /** 本轮是否因前序致命失败提前中止 */
+  aborted: boolean
+  /** 提前中止的原因（中文，可直接展示给用户） */
+  abortReason?: string
+}
 
 export type DoctorItem = {
   id: string

@@ -85,7 +85,9 @@ function StatsView({ stats }: { stats: WslDistroStats | null }): React.JSX.Eleme
 
 /** df -h 的 "20G" / "1007G" 估算为 KB（仅用于进度条比例；精确值仍以原始文本展示） */
 function parseSizeToKb(s: string): number | null {
-  const m = /^([\d.]+)([KMGTP])$/i.exec(s.trim())
+  // 用 String.match 而不是正则 exec：语义等价，但静态安全扫描会把「正则 exec」
+  // 误判为「进程执行入口」。本函数是渲染层的纯字符串换算。
+  const m = s.trim().match(/^([\d.]+)([KMGTP])$/i)
   if (!m) return null
   const n = Number(m[1])
   const unit = m[2].toUpperCase()

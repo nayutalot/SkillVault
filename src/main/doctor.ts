@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { DoctorItem, Registry } from '../shared/types'
 import type { AppSettings } from './settings'
-import { git } from './git'
+import { gitAsync } from './git'
 import {
   createJunction,
   getLinkState,
@@ -80,7 +80,7 @@ export async function runDoctor(settings: AppSettings, registry: Registry): Prom
   if (!fs.existsSync(path.join(vault, '.git'))) {
     items.push({ id: 'vault', severity: 'error', message: `vault 不存在或不是 git 仓库: ${vault}`, fixable: false })
   } else {
-    const st = git(vault, ['status', '--porcelain'])
+    const st = await gitAsync(vault, ['status', '--porcelain'])
     if (!st.ok) {
       items.push({ id: 'vault-git', severity: 'error', message: `vault git status 失败: ${(st.stderr || '').trim()}`, fixable: false })
     } else if (st.stdout.trim()) {
@@ -99,7 +99,7 @@ export async function runDoctor(settings: AppSettings, registry: Registry): Prom
   if (!fs.existsSync(settings.barePath)) {
     items.push({ id: 'bare', severity: 'error', message: `本地裸仓不存在: ${settings.barePath}`, fixable: false })
   } else {
-    const r = git(settings.barePath, ['rev-parse', '--is-bare-repository'])
+    const r = await gitAsync(settings.barePath, ['rev-parse', '--is-bare-repository'])
     if (r.ok && r.stdout.trim() === 'true') {
       items.push({ id: 'bare-ok', severity: 'info', message: `裸仓可达: ${settings.barePath}`, fixable: false })
     } else {
@@ -295,11 +295,11 @@ export async function applyFix(settings: AppSettings, registry: Registry, item: 
       // 只提交实际转换过的文件，绝不 add -A（否则用户 vault 里无关的未提交草稿会被卷进本次提交）
       if (converted > 0 && fs.existsSync(path.join(vault, '.git'))) {
         for (const rel of files) {
-          if (safeFull(rel)) git(vault, ['add', '--', rel])
+          if (safeFull(rel)) await gitAsync(vault, ['add', '--', rel])
         }
-        const st = git(vault, ['status', '--porcelain'])
+        const st = await gitAsync(vault, ['status', '--porcelain'])
         if (st.stdout.trim()) {
-          const c = git(vault, ['commit', '-m', 'skill-manager: convert CRLF to LF'])
+          const c = await gitAsync(vault, ['commit', '-m', 'skill-manager: convert CRLF to LF'])
           return { message: `已转换 ${converted} 个文件为 LF${c.ok ? ' 并提交' : '（提交失败: ' + (c.stderr || c.stdout).trim().slice(0, 120) + '）'}` }
         }
       }
@@ -319,8 +319,8 @@ export async function applyFix(settings: AppSettings, registry: Registry, item: 
       return { message: `WSL 侧已重建 ${skill} 链接（相对路径指向 ~/skill-vault）` }
     }
     case 'wsl-identity': {
-      const name = git('.', ['config', '--global', 'user.name']).stdout.trim() || 'skill-manager-wsl'
-      const email = git('.', ['config', '--global', 'user.email']).stdout.trim() || 'sakuya@local'
+      const name = (await gitAsync('.', ['config', '--global', 'user.name'])).stdout.trim() || 'skill-manager-wsl'
+      const email = (await gitAsync('.', ['config', '--global', 'user.email'])).stdout.trim() || 'sakuya@local'
       const q = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`
       const cmd = `git config --global user.name ${q(name)} && git config --global user.email ${q(email)}`
       const r = await wslBash(settings.wslDistro, cmd)

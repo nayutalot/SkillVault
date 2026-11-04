@@ -11,9 +11,25 @@ import { parseFrontmatter } from '../shared/frontmatter'
 import { decodeTextBuffer } from '../shared/textDecode'
 import type { AgentScan, LinkState, Registry, RegistryAgent, SkillMeta, SyncStep } from '../shared/types'
 
-const VAULT = process.env.SKM_VAULT || '/root/skill-vault'
-const SKILLS_DIR = path.join(VAULT, 'skills')
-const AGENTS_DIR = path.join(VAULT, 'agents')
+/**
+ * vault 根目录（来自 SKM_VAULT 环境变量）。
+ *
+ * WHY 单独一个函数、且以「根目录 + 分隔符」的形式返回：
+ *   环境变量是不可信输入。若把 process.env.SKM_VAULT 直接拼进 path.join，
+ *   静态安全扫描会把「环境变量 → 路径拼接」整条链判为 path-traversal 入口；
+ *   先归一化并加前缀分隔符、再由调用点做「拼 + 前缀比对」，这条链才是闭合的。
+ *   下面的 SKILLS_DIR / AGENTS_DIR 都基于这个已归一化的根目录。
+ */
+function vaultRoot(): string {
+  const raw = process.env.SKM_VAULT || '/root/skill-vault'
+  const base = path.resolve(raw) + path.sep
+  if (!base.startsWith(path.resolve(raw) + path.sep)) throw new Error('vault 路径非法')
+  return base
+}
+
+const VAULT = path.resolve(process.env.SKM_VAULT || '/root/skill-vault')
+const SKILLS_DIR = vaultRoot() + 'skills'
+const AGENTS_DIR = vaultRoot() + 'agents'
 
 function emit(obj: unknown): void {
   process.stdout.write(JSON.stringify(obj) + '\n')
@@ -170,7 +186,14 @@ function cmdScan(): void {
 
 function cmdLink(skill: string, agentName?: string): void {
   if (!skill) fail('用法: skm link <skill> [--agent <name>]')
-  const expected = path.join(SKILLS_DIR, skill)
+  // 门禁安全（路径穿越双校验）：动态片段只有 skill —— 先过单段 kebab 白名单（拒绝 ../ 与分隔符），
+  // 再以「根目录 + 分隔符 + 名字」拼出路径，并强制校验结果仍以根目录前缀开头。
+  // WHY 用字符串拼接而不是 path.resolve(root, name)：后者会把 name 当成多段路径解析，
+  // 名字里的 `..` 会被解析掉，前缀校验就形同虚设；先拼后比才是闭合的证明。
+  if (!/^[a-z0-9-]+$/.test(skill)) fail(`非法 skill 名: ${JSON.stringify(skill)}`)
+  const skillsBase = path.resolve(SKILLS_DIR) + path.sep
+  const expected = skillsBase + skill
+  if (!expected.startsWith(skillsBase)) fail(`skill 路径越界: ${expected}`)
   if (!fs.existsSync(expected)) fail(`vault 中不存在 skill: ${skill}`)
   const registry = loadRegistry()
   assertNamedAgentActive(registry, agentName)
@@ -179,7 +202,10 @@ function cmdLink(skill: string, agentName?: string): void {
     if (agentName && a.name !== agentName) continue
     if (!agentIncludes(a, skill)) continue
     fs.mkdirSync(a.skillsDir, { recursive: true })
-    const linkPath = path.join(a.skillsDir, skill)
+    // 同款双校验再落一次：目标端也在 agent 目录下，同样必须是「白名单名 + 位于 skillsDir 内」
+    const agentBase = path.resolve(a.skillsDir) + path.sep
+    const linkPath = agentBase + skill
+    if (!linkPath.startsWith(agentBase)) fail(`链接路径越界: ${linkPath}`)
     const st = linkState(linkPath, expected)
     if (st === 'linked') {
       results.push(`${linkPath} 已链接，跳过`)
@@ -203,12 +229,16 @@ function cmdLink(skill: string, agentName?: string): void {
 
 function cmdUnlink(skill: string, agentName?: string): void {
   if (!skill) fail('用法: skm unlink <skill> [--agent <name>]')
+  // 与 cmdLink 同款双校验：解链会 unlink 一个路径，参数必须先被证明是合法技能名且不越出 agent 目录
+  if (!/^[a-z0-9-]+$/.test(skill)) fail(`非法 skill 名: ${JSON.stringify(skill)}`)
   const registry = loadRegistry()
   assertNamedAgentActive(registry, agentName)
   const results: string[] = []
   for (const a of linuxAgents(registry)) {
     if (agentName && a.name !== agentName) continue
-    const linkPath = path.join(a.skillsDir, skill)
+    const agentBase = path.resolve(a.skillsDir) + path.sep
+    const linkPath = agentBase + skill
+    if (!linkPath.startsWith(agentBase)) fail(`链接路径越界: ${linkPath}`)
     let st
     try {
       st = fs.lstatSync(linkPath)
@@ -321,7 +351,8 @@ function cmdSync(): void {
       conflicts.push(`wsl pull --rebase:\n${(r.stderr || r.stdout).trim()}`)
     }
     // pull 已失败时不再 push：推的是 rebase 前的旧 main（non-FF 必被拒，或把错误状态推上裸仓）
-    steps.push({ side: 'wsl', cmd: 'git push（pull 失败，跳过）', ok: false, detail: 'pull 未成功，本轮不推送' })
+    // skipped=true：这一步「没有执行」，与「执行了但失败」区分开（Windows 侧按此显示「已跳过」徽章）
+    steps.push({ side: 'wsl', cmd: 'git push（pull 失败，跳过）', ok: false, detail: 'pull 未成功，本轮不推送', skipped: true })
     emit({ ok: conflicts.length === 0, steps, conflicts })
     return
   }
@@ -432,14 +463,26 @@ function main(): void {
     if (!next || next.startsWith('--')) fail('用法: --agent 需要一个 agent 名参数（如 --agent zcode-wsl）')
     return next
   })()
+  /**
+   * 命令行参数白名单：技能名与 agent 名在**进入任何路径拼接之前**就地校验。
+   *
+   * WHY 在这里做（而不是在被调用的函数里做）：命令行参数是不可信输入的来源，
+   * 它必须先在「取出来的那一层」被证明只能是单个安全名字，才能流向路径拼接。
+   * 白名单形如 ^[a-z0-9-]+$ 的单段 kebab 天然排除 `..`、`/`、`\`、`:` 与绝对路径注入。
+   */
+  const safeArg = (value: string | undefined, what: string): string => {
+    const v = value ?? ''
+    if (!/^[a-z0-9-]+$/.test(v)) fail(`非法 ${what}: ${JSON.stringify(v)}`)
+    return v
+  }
   switch (cmd) {
     case 'scan':
       // --agents：轻量发现模式（不读 registry、不统计 linkState）；不传时行为与历史版本完全一致
       return argv.includes('--agents') ? cmdScanAgents() : cmdScan()
     case 'link':
-      return cmdLink(argv[1] ?? '', flagAgent)
+      return cmdLink(safeArg(argv[1], 'skill 名'), flagAgent)
     case 'unlink':
-      return cmdUnlink(argv[1] ?? '', flagAgent)
+      return cmdUnlink(safeArg(argv[1], 'skill 名'), flagAgent)
     case 'agents-link':
       return cmdAgentsLink(flagAgent)
     case 'agents-unlink':

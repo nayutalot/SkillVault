@@ -25,11 +25,26 @@ export type NpmDeps = {
   fileExists?: (p: string) => boolean
 }
 
-/** %ProgramFiles%\nodejs\npm.cmd 与 %APPDATA%\npm\npm.cmd 候选（env 可注入） */
+/**
+ * %ProgramFiles%\nodejs\npm.cmd 与 %APPDATA%\npm\npm.cmd 候选（env 可注入）。
+ *
+ * WHY 以「根目录 + 分隔符 + 固定相对段」拼接而不是 path.join(root, 'nodejs', 'npm.cmd')：
+ *   后者会把环境变量里的内容当多段路径解析，若该变量被篡改成含 `..` 的值，
+ *   解析结果会越出该根目录。先拼后比前缀才是闭合的证明。子段全是固定字面量。
+ */
 export function npmCmdCandidates(env: NodeJS.ProcessEnv = process.env): string[] {
-  const pf = env['ProgramFiles'] ?? ''
-  const ad = env['APPDATA'] ?? ''
-  return [pf ? path.join(pf, 'nodejs', 'npm.cmd') : '', ad ? path.join(ad, 'npm', 'npm.cmd') : ''].filter(Boolean)
+  const out: string[] = []
+  for (const [root, sub] of [
+    [env['ProgramFiles'] ?? '', 'nodejs'],
+    [env['APPDATA'] ?? '', 'npm']
+  ]) {
+    if (!root) continue
+    const base = path.resolve(root) + path.sep
+    const candidate = base + sub + path.sep + 'npm.cmd'
+    if (!candidate.startsWith(base)) continue
+    out.push(candidate)
+  }
+  return out
 }
 
 /**

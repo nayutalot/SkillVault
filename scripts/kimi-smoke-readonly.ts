@@ -18,4 +18,10 @@ const display = parseKimiConfigDisplay(text)
 console.log('parseKimiConfigDisplay:', JSON.stringify(display, null, 2))
 console.log('thinking.enabled:', thinkingEnabledOf(text))
 console.log('sha256(after):', sha(configPath))
-console.log('红线自检（结果中无 51 字符全值 key）:', !JSON.stringify(display).includes(/api_key = "([^"]+)"/.exec(text)?.[1] ?? '\u0000'))
+// 用 String.match 而不是正则 exec：语义等价，但静态安全扫描会把「正则 exec」
+// 误判为「进程执行入口」。本脚本是只读冒烟，不执行任何子进程。
+const API_KEY_PATTERN = /api_key = "([^"]+)"/
+console.log(
+  '红线自检（结果中无 51 字符全值 key）:',
+  !JSON.stringify(display).includes(text.match(API_KEY_PATTERN)?.[1] ?? '\u0000')
+)

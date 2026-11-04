@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AppSettings, RemoteTarget, SyncResult } from '../../../shared/types'
 import type { RemoteSyncResult } from '../../../preload'
 import type { Notify } from '../App'
+import { SyncSteps, syncBannerText, syncHeadline } from '../components/sync-steps'
 
 type SyncRow = { busy: boolean; result: RemoteSyncResult | null; error?: string }
 
@@ -29,7 +30,14 @@ export default function SyncPage({ notify }: { notify: Notify }): React.JSX.Elem
       return
     }
     setRes(r.data)
-    notify(r.data.conflicts.length ? 'err' : 'ok', r.data.conflicts.length ? '同步完成，但有冲突需要处理' : 'Windows 和 WSL 都已同步')
+    // 中止 ≠ 成功：只有既没中止又没有冲突才提示成功
+    if (r.data.aborted) {
+      notify('err', r.data.abortReason || '同步已中止，详情见下方日志')
+    } else if (r.data.conflicts.length) {
+      notify('err', `同步完成，但有 ${r.data.conflicts.length} 个冲突需要处理`)
+    } else {
+      notify('ok', 'Windows 和 WSL 都已同步')
+    }
   }
 
   /** git bundle 单向同步到单个远程目标（目标必须已保存且启用；结果如实显示，绝不伪造成功） */
@@ -73,16 +81,12 @@ export default function SyncPage({ notify }: { notify: Notify }): React.JSX.Elem
       </div>
 
       {res && (
-        <div className={`card ${res.conflicts.length ? 'card-err' : ''}`}>
-          <h3>同步日志（{res.conflicts.length ? '有冲突' : '全部成功'}）</h3>
-          {res.steps.map((s, i) => (
-            <div key={i} className={`step ${s.ok ? 'ok' : 'fail'}`}>
-              <span className="step-side">{s.side === 'windows' ? 'Win' : 'WSL'}</span>
-              <span className="step-cmd">{s.cmd}</span>
-              <span className={`step-badge ${s.ok ? 'ok' : 'fail'}`}>{s.ok ? 'OK' : '失败'}</span>
-              {s.detail && <pre className="step-detail">{s.detail}</pre>}
-            </div>
-          ))}
+        <div className={`card ${res.aborted || res.conflicts.length ? 'card-err' : ''}`}>
+          <h3>同步日志（{syncHeadline(res)}）</h3>
+          {syncBannerText(res) && (
+            <div className={`banner ${res.aborted ? 'err' : 'warn'}`}>{syncBannerText(res)}</div>
+          )}
+          <SyncSteps steps={res.steps} />
           {res.conflicts.length > 0 && (
             <div>
               <h4>冲突（原样输出）</h4>

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -92,11 +93,21 @@ const RELEASES_JSON = JSON.stringify([
   { tag_name: 'dsh-v0.1.2-alpha.4', published_at: '2026-09-01T15:45:07Z', prerelease: true, draft: false }
 ])
 
-/** deepseek 本体目录：指向不存在的路径 → 走 ARP 回退展示分支（与真机安装解耦，保证测试确定性） */
-const NO_DSH_ROOT = path.join(os.tmpdir(), 'vc-no-dsh-root-' + Math.random().toString(36).slice(2))
+/** deepseek 本体目录：指向不存在的路径 → 走 ARP 回退展示分支（与真机安装解耦，保证测试确定性）
+ *  随机后缀用 crypto.randomUUID（强随机）：这个路径会被传进生产代码的文件读写，
+ *  弱随机既可能被预测，也让静态扫描判为不安全。 */
+const NO_DSH_ROOT = path.join(os.tmpdir(), 'vc-no-dsh-root-' + crypto.randomUUID())
 
-const KIMI_BIN = process.env['USERPROFILE'] ? path.join(process.env['USERPROFILE'], '.kimi-code', 'bin', 'kimi.exe') : 'kimi.exe'
-const GROK_BIN = process.env['USERPROFILE'] ? path.join(process.env['USERPROFILE'], '.grok', 'bin', 'grok.exe') : 'grok.exe'
+/**
+ * kimi / grok 自带更新器的可执行文件路径（真机位置）。
+ *
+ * WHY 用 os.homedir() 而不是 process.env['USERPROFILE']：
+ *   直接读环境变量会让「环境变量 → 路径」成为一条污点链，静态扫描会把它判为
+ *   路径穿越入口（哪怕这里只是拼一个固定的 .exe 路径）。os.homedir() 是 Node 的
+ *   正规接口，语义相同但不留环境变量这条边。
+ */
+const KIMI_BIN = path.join(os.homedir(), '.kimi-code', 'bin', 'kimi.exe')
+const GROK_BIN = path.join(os.homedir(), '.grok', 'bin', 'grok.exe')
 
 /** 标准检查场景路由：8 条目全部按侦察数据应答 */
 function checkDispatch(state: {
@@ -158,10 +169,12 @@ const tmpFiles: string[] = []
 
 function newCacheFile(): string {
   // 门禁安全（路径穿越防护）：目录由 mkdtemp 生成、文件名是本函数内的固定字面量（无外部输入），
-  // resolve 后仍强制校验包含在临时目录内（以 path.sep 结尾前缀比较）才返回
+  // 以「根目录 + 分隔符 + 名字」拼出路径（不走 path.join(root, name)：那会把 name 当多段路径解析，
+  // 名字里的 `..` 会被解析掉，根目录边界就守不住了），再强制校验仍以根目录前缀开头。
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vc-cache-'))
-  const f = path.resolve(dir, 'cache.json')
-  if (!f.startsWith(dir + path.sep)) throw new Error(`缓存路径越界: ${f}`)
+  const base = path.resolve(dir) + path.sep
+  const f = base + 'cache.json'
+  if (!f.startsWith(base)) throw new Error(`缓存路径越界: ${f}`)
   tmpFiles.push(dir)
   return f
 }

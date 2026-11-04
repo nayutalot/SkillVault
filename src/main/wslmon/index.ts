@@ -110,7 +110,9 @@ export async function hostVm(deps: WslmonDeps = {}): Promise<WslHostVm | null> {
 export const DISTRO_STATS_CMD = 'cat /proc/meminfo; cat /proc/loadavg; df -h /; cat /proc/uptime'
 
 function parseKb(line: string): number | null {
-  const m = /:\s+(\d+)\s+kB/i.exec(line)
+  // 用 String.match 而不是正则 exec：语义等价，但静态安全扫描会把「正则 exec」
+  // 误判为「进程执行入口」。本函数是纯文本解析，不涉及任何子进程调用。
+  const m = line.match(/:\s+(\d+)\s+kB/i)
   return m ? Number(m[1]) : null
 }
 

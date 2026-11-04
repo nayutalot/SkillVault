@@ -398,6 +398,17 @@ body {
   color: var(--err);
 }
 
+/* 已跳过 = 因前序致命失败而「没有执行」：中性灰显示，绝不与「失败」混淆 */
+.step-badge.skip,
+.step.skip .step-badge.skip {
+  background: #eef2f7;
+  color: var(--muted);
+}
+
+.step.skip {
+  opacity: 0.85;
+}
+
 .step-detail {
   width: 100%;
   margin: 2px 0 0;

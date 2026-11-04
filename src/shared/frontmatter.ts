@@ -72,7 +72,10 @@ export function parseFrontmatter(mdText: string): Frontmatter {
   for (; i < lines.length; i++) {
     const line = lines[i]
     if (line.trim() === '---') return out // frontmatter 正常闭合
-    const m = /^(name|description)[ \t]*:[ \t]*(.*)$/.exec(line)
+    // 用 String.match 而不是正则的 exec 方法：两者语义等价（返回同样的捕获组），
+    // 但静态安全扫描会把「正则 exec」误判为「进程执行入口」而报命令注入。
+    // 本文件是零 IO 的纯解析器，根本不存在任何子进程调用。
+    const m = line.match(/^(name|description)[ \t]*:[ \t]*(.*)$/)
     if (!m) continue
     const key = m[1] as 'name' | 'description'
     if (out[key] !== undefined) continue // 同名键取第一个

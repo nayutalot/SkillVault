@@ -61,9 +61,18 @@ src/
 ├── companion/
 │   └── skm.ts          WSL 伴生 CLI：esbuild 打包为零依赖单文件 out/skm.mjs，
 │                        子命令 scan / link / unlink / agents-link / agents-unlink / sync /
-│                        fix-permissions / selfcheck，始终输出单个 JSON，绝不访问网络
+│                        fix-permissions / selfcheck，始终输出单个 JSON。
+│                        自身不含网络代码，但 sync 会调用 git pull/push —— 默认 origin
+│                        指向本地裸仓故无需网络；若把 origin 改为远程地址则照常发起网络请求
 └── shared/             三端共享：types.ts / registry.ts / agentSignatures.ts /
                          frontmatter.ts / textDecode.ts / paths.ts
+
+scripts/                复现与取证脚本（纯 Node 内置模块，零 npm 依赖）
+├── preflight.mjs       前置环境预检（Node / pnpm / Git / WSL / Docker）
+├── count-stats.mjs     规模数字复算（源码行数 / 用例 / 断言）
+├── measure-perf.mjs    单一驱动复测 junction vs 复制
+├── init-fixture.mjs    隔离测试夹具生成（裸仓 + 双工作仓 + 假 harness）
+└── verify-roundtrip.mjs 双端同步与冲突演练验收报告
 ```
 
 ## Vault 布局
@@ -100,10 +109,22 @@ pnpm dev               # 启动开发模式
 | `pnpm dist` | 构建 + electron-builder 打包 Windows 安装包与便携版 |
 | `pnpm dist:portable` | 仅便携版（免安装单文件） |
 | `pnpm migrate` | 旧版数据迁移脚本 |
+| `pnpm preflight` | 复现前置环境预检（Node / pnpm / Git / WSL / Docker），必需项不满足则退出码 1 |
+| `pnpm stats` | 复算规模数字（源码行数 / 测试文件 / 用例 / 断言）并写出 `docs/stats.json` |
+| `pnpm stats:check` | 只比对不写文件；与仓库内记录不一致则退出码 1（可用于 CI） |
+| `pnpm measure` | 单一驱动复测「junction 链接 vs 逐份复制」，写出 `docs/perf-raw.json` |
+| `pnpm fixture` | 在系统临时目录生成**隔离**测试夹具（裸仓 + 双工作仓 + 假 harness 目录） |
+| `pnpm verify:roundtrip` | 用上述夹具跑双端同步与冲突演练，产出机器可读验收报告 |
+| `pnpm chains:stats` | 复算四条 Prompt 链的消息构成，写出 `docs/prompt-chain-stats.json` |
+| `pnpm chains:check` | 只比对 Prompt 链统计；与仓库内记录不一致则退出码 1 |
+| `pnpm manifest` | 生成 `docs/source-manifest.json`（本次参赛的提交号 + `src/` 内容指纹） |
+| `pnpm manifest:check` | 只校验 `src/` 指纹与清单一致；不一致则退出码 1 |
 
 ## 测试
 
-vitest，**37 个测试文件、567 个用例**（全部通过）。文件系统、home 目录、时钟、加密器、子进程均可注入，测试在临时目录演练，真实文件零改动；外部命令（docker / wsl / git / npm）经 fakeSpawn 演练。
+vitest，**40 个测试文件、588 个用例**（全部通过）。文件系统、home 目录、时钟、加密器、子进程均可注入，测试在临时目录演练，真实文件零改动；外部命令（docker / wsl / git / npm）经 fakeSpawn 演练。
+
+用例数与断言数不是写死的文案，而是由 `pnpm stats` 从当前工作树复算并存入 `docs/stats.json`，评审者可用同一条命令独立核对。
 
 ## 参赛材料
 
@@ -111,14 +132,31 @@ vitest，**37 个测试文件、567 个用例**（全部通过）。文件系统
 
 | 材料 | 路径 | 说明 |
 | --- | --- | --- |
-| 技术文档（PDF） | [`docs/SkillVault-技术文档.pdf`](docs/SkillVault-技术文档.pdf) | 27 页，含架构设计、意图控制策略、可复现性论证与实测数据 |
+| 技术文档（PDF） | [`docs/SkillVault-技术文档.pdf`](docs/SkillVault-技术文档.pdf) | 30 页，含架构设计、意图控制策略、可复现性论证与实测数据 |
 | 技术文档（可编辑源） | [`docs/SkillVault-技术文档.docx`](docs/SkillVault-技术文档.docx) | 同上，可编辑 |
+| **源码版本清单** | [`docs/source-manifest.json`](docs/source-manifest.json) | **本次参赛对应的提交号 + `src/` 内容指纹** —— 文档封面不再印死 SHA，改为指向本清单（避免文档与提交号互相指代的悖论） |
 | 10 分钟复现指南 | [`REPRODUCE.md`](REPRODUCE.md) | 环境配置、依赖清单、环境变量模板、双端部署与验收顺序 |
 | AI 协同 Prompt 链快照 | [`docs/prompt-chains/`](docs/prompt-chains/) | 4 条核心迭代的原始对话导出，未经改写 |
-| 实测数据 | [`docs/measured-data.json`](docs/measured-data.json) | 分发方式对照、跨端同步耗时、规模对照 |
+| Prompt 链统计（可复算） | [`docs/prompt-chain-stats.json`](docs/prompt-chain-stats.json) | 人的输入 / 系统消息 / AI 回复 / 工具调用的构成与口径，由 `pnpm chains:stats` 生成 |
+| 缺陷台账 | [`docs/defect-ledger.md`](docs/defect-ledger.md) | 按缺陷 ID 记录现象、根因、修复提交、修复位置与对应回归用例 |
+| 告警裁定台账 | [`docs/security-alerts.md`](docs/security-alerts.md) | 安全扫描告警的逐条裁定：告警 ID、代码位置、裁定理由、反例测试、复核者 |
+| 产物对应表 | [`docs/release-artifacts.md`](docs/release-artifacts.md) | 文档 / 安装包 / 伴生 CLI 与源码提交、哈希的对应关系 |
+| 规模统计（可复算） | [`docs/stats.json`](docs/stats.json) | 源码行数 / 测试文件 / 用例 / 断言，由 `pnpm stats` 生成 |
+| 实测数据 | [`docs/measured-data.json`](docs/measured-data.json) | 分发方式对照（两轮）、跨端同步耗时、规模对照 |
+| 实测原始记录 | [`docs/perf-raw.json`](docs/perf-raw.json) | 逐轮原始计时，由 `pnpm measure` 生成 |
 | 界面截图 | [`docs/screenshots/`](docs/screenshots/) | 9 个功能页面 |
 | 架构图 | [`docs/figures/`](docs/figures/) | 6 张系统架构与流程图 |
-| 变更日志 | [`CHANGELOG.md`](CHANGELOG.md) | v1.0.0 → v1.3.0 能力演进 |
+| 变更日志 | [`CHANGELOG.md`](CHANGELOG.md) | M1–M5 开发轮次的能力演进 |
+
+### 评审者如何确认「拿到的是同一份源码」
+
+```bash
+node scripts/source-manifest.mjs --check   # 校验 src/ 内容指纹与清单一致（退出码 0 即一致）
+node scripts/count-stats.mjs --check       # 校验文档里的规模数字与当前工作树一致
+node scripts/count-prompt-chains.mjs --check # 校验四条 Prompt 链的消息构成
+```
+
+三条命令全部退出码 0，即表示评审者手上的源码、文档里的数字与过程材料三者互相吻合。
 
 ## 打包与分发
 

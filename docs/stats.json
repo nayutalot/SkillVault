@@ -1,0 +1,576 @@
+{
+  "generatedBy": "scripts/count-stats.mjs",
+  "repoRoot": "F:\\Active_Project\\Skill-Manager",
+  "platform": {
+    "os": "win32",
+    "release": "10.0.26200",
+    "node": "v24.21.0"
+  },
+  "rules": {
+    "includedRoots": [
+      "src/",
+      "tests/"
+    ],
+    "excludedRoots": [
+      "docs/",
+      "scripts/",
+      "build/",
+      "out/",
+      "dist/",
+      "node_modules/"
+    ],
+    "lineKind": "physical-lines (wc -l 等价)；另计 codeLines = 物理行 − 空行 − 纯注释行",
+    "commentRule": "整行以 // * /* */ 开头（允许前导空白）视为纯注释行；行内注释不扣除",
+    "testFileRule": "tests/**/*.test.ts（与 vitest.config.ts 的 include 一致）",
+    "helperRule": "tests/helpers/** 为测试支撑文件，单独统计，行数计入测试代码行数",
+    "assertionRule": "测试文件中 expect( 的出现次数（含 expect.soft / .rejects / .resolves 等变体）",
+    "testCaseEstimateRule": "it( 与 test( 的出现次数，仅为静态估算且为【下界】：位于 for 循环体内的 it( 每轮只计 1 次，实际展开的用例数更多。权威值以 vitest 运行结果为准（--vitest）或 docs/stats.json 的 vitest 字段"
+  },
+  "source": {
+    "files": 60,
+    "physicalLines": 14257,
+    "codeLines": 11599,
+    "perFile": [
+      {
+        "file": "src/main/ipc.ts",
+        "physical": 840,
+        "code": 662
+      },
+      {
+        "file": "src/renderer/src/pages/Dashboard.tsx",
+        "physical": 823,
+        "code": 751
+      },
+      {
+        "file": "src/main/apihub/index.ts",
+        "physical": 665,
+        "code": 584
+      },
+      {
+        "file": "src/main/winLinks.ts",
+        "physical": 590,
+        "code": 419
+      },
+      {
+        "file": "src/shared/types.ts",
+        "physical": 548,
+        "code": 352
+      },
+      {
+        "file": "src/main/apihub/transforms.ts",
+        "physical": 545,
+        "code": 443
+      },
+      {
+        "file": "src/renderer/src/pages/ApiHub.tsx",
+        "physical": 532,
+        "code": 492
+      },
+      {
+        "file": "src/companion/skm.ts",
+        "physical": 507,
+        "code": 424
+      },
+      {
+        "file": "src/renderer/src/pages/Settings.tsx",
+        "physical": 504,
+        "code": 468
+      },
+      {
+        "file": "src/main/versionCenter/jobs.ts",
+        "physical": 447,
+        "code": 373
+      },
+      {
+        "file": "src/main/versionCenter/github.ts",
+        "physical": 434,
+        "code": 351
+      },
+      {
+        "file": "src/main/apihub/store.ts",
+        "physical": 427,
+        "code": 350
+      },
+      {
+        "file": "src/renderer/src/pages/VersionCenter.tsx",
+        "physical": 388,
+        "code": 348
+      },
+      {
+        "file": "src/renderer/src/pages/Import.tsx",
+        "physical": 376,
+        "code": 334
+      },
+      {
+        "file": "src/main/doctor.ts",
+        "physical": 333,
+        "code": 298
+      },
+      {
+        "file": "src/renderer/src/components/apihub-providers.tsx",
+        "physical": 324,
+        "code": 295
+      },
+      {
+        "file": "src/renderer/src/pages/DockerPage.tsx",
+        "physical": 314,
+        "code": 288
+      },
+      {
+        "file": "src/renderer/src/pages/WslPage.tsx",
+        "physical": 287,
+        "code": 249
+      },
+      {
+        "file": "src/main/docker/index.ts",
+        "physical": 273,
+        "code": 214
+      },
+      {
+        "file": "src/shared/registry.ts",
+        "physical": 268,
+        "code": 220
+      },
+      {
+        "file": "src/main/kimi/tomlEdit.ts",
+        "physical": 246,
+        "code": 184
+      },
+      {
+        "file": "src/main/remoteSync.ts",
+        "physical": 241,
+        "code": 193
+      },
+      {
+        "file": "src/main/importer.ts",
+        "physical": 240,
+        "code": 195
+      },
+      {
+        "file": "src/main/kimi/profiles.ts",
+        "physical": 233,
+        "code": 186
+      },
+      {
+        "file": "src/main/wslmon/index.ts",
+        "physical": 229,
+        "code": 185
+      },
+      {
+        "file": "src/preload/index.ts",
+        "physical": 225,
+        "code": 160
+      },
+      {
+        "file": "src/main/agentDiscover.ts",
+        "physical": 209,
+        "code": 159
+      },
+      {
+        "file": "src/main/skillScan.ts",
+        "physical": 184,
+        "code": 139
+      },
+      {
+        "file": "src/main/apihub/adapters.ts",
+        "physical": 176,
+        "code": 137
+      },
+      {
+        "file": "src/main/versionCenter/exec.ts",
+        "physical": 167,
+        "code": 123
+      },
+      {
+        "file": "src/main/sync.ts",
+        "physical": 164,
+        "code": 122
+      },
+      {
+        "file": "src/renderer/src/pages/Sync.tsx",
+        "physical": 153,
+        "code": 140
+      },
+      {
+        "file": "src/main/apihub/catalog.ts",
+        "physical": 152,
+        "code": 113
+      },
+      {
+        "file": "src/main/versionCenter/npm.ts",
+        "physical": 149,
+        "code": 105
+      },
+      {
+        "file": "src/main/versionCenter/catalog.ts",
+        "physical": 148,
+        "code": 126
+      },
+      {
+        "file": "src/main/versionCenter/visibility.ts",
+        "physical": 143,
+        "code": 113
+      },
+      {
+        "file": "src/shared/agentSignatures.ts",
+        "physical": 139,
+        "code": 92
+      },
+      {
+        "file": "src/main/versionCenter/versionCompare.ts",
+        "physical": 132,
+        "code": 94
+      },
+      {
+        "file": "src/main/vscode.ts",
+        "physical": 125,
+        "code": 91
+      },
+      {
+        "file": "src/main/wslBridge.ts",
+        "physical": 123,
+        "code": 93
+      },
+      {
+        "file": "src/main/versionCenter/winget.ts",
+        "physical": 115,
+        "code": 85
+      },
+      {
+        "file": "src/main/git.ts",
+        "physical": 114,
+        "code": 79
+      },
+      {
+        "file": "src/main/remote.ts",
+        "physical": 103,
+        "code": 78
+      },
+      {
+        "file": "src/shared/frontmatter.ts",
+        "physical": 98,
+        "code": 68
+      },
+      {
+        "file": "src/main/skillOpen.ts",
+        "physical": 91,
+        "code": 58
+      },
+      {
+        "file": "src/main/settings.ts",
+        "physical": 83,
+        "code": 69
+      },
+      {
+        "file": "src/main/versionCenter/arp.ts",
+        "physical": 79,
+        "code": 65
+      },
+      {
+        "file": "src/renderer/src/App.tsx",
+        "physical": 71,
+        "code": 65
+      },
+      {
+        "file": "src/main/versionCenter/native.ts",
+        "physical": 70,
+        "code": 56
+      },
+      {
+        "file": "src/main/wslScan.ts",
+        "physical": 69,
+        "code": 48
+      },
+      {
+        "file": "src/renderer/src/pages/Doctor.tsx",
+        "physical": 69,
+        "code": 62
+      },
+      {
+        "file": "src/main/index.ts",
+        "physical": 64,
+        "code": 55
+      },
+      {
+        "file": "src/shared/textDecode.ts",
+        "physical": 52,
+        "code": 32
+      },
+      {
+        "file": "src/renderer/src/components/sync-steps.tsx",
+        "physical": 50,
+        "code": 36
+      },
+      {
+        "file": "src/main/agentsOpen.ts",
+        "physical": 48,
+        "code": 26
+      },
+      {
+        "file": "src/main/versionCenter/registryRead.ts",
+        "physical": 28,
+        "code": 21
+      },
+      {
+        "file": "src/main/singleInstance.ts",
+        "physical": 18,
+        "code": 8
+      },
+      {
+        "file": "src/shared/paths.ts",
+        "physical": 13,
+        "code": 7
+      },
+      {
+        "file": "src/renderer/src/main.tsx",
+        "physical": 10,
+        "code": 9
+      },
+      {
+        "file": "src/preload/index.d.ts",
+        "physical": 9,
+        "code": 7
+      }
+    ]
+  },
+  "tests": {
+    "testFiles": 41,
+    "helperFiles": 2,
+    "physicalLines": 8936,
+    "codeLines": 7676,
+    "testOnlyPhysicalLines": 8834,
+    "helperPhysicalLines": 102,
+    "assertionCountStatic": 1842,
+    "testCaseCountStaticEstimate": 592,
+    "perFile": [
+      {
+        "file": "tests/apihub-runtime.test.ts",
+        "physical": 694,
+        "code": 607
+      },
+      {
+        "file": "tests/versioncenter-github.test.ts",
+        "physical": 559,
+        "code": 488
+      },
+      {
+        "file": "tests/apihub-kimi.test.ts",
+        "physical": 407,
+        "code": 350
+      },
+      {
+        "file": "tests/versioncenter-jobs.test.ts",
+        "physical": 389,
+        "code": 329
+      },
+      {
+        "file": "tests/apihub-transforms.test.ts",
+        "physical": 378,
+        "code": 329
+      },
+      {
+        "file": "tests/agentDiscover.test.ts",
+        "physical": 326,
+        "code": 292
+      },
+      {
+        "file": "tests/docker.test.ts",
+        "physical": 279,
+        "code": 248
+      },
+      {
+        "file": "tests/wslmon.test.ts",
+        "physical": 268,
+        "code": 233
+      },
+      {
+        "file": "tests/apihub-providers.test.ts",
+        "physical": 252,
+        "code": 223
+      },
+      {
+        "file": "tests/registry-v3.test.ts",
+        "physical": 252,
+        "code": 231
+      },
+      {
+        "file": "tests/skillScan.test.ts",
+        "physical": 245,
+        "code": 200
+      },
+      {
+        "file": "tests/companion-arg-guard.test.ts",
+        "physical": 244,
+        "code": 176
+      },
+      {
+        "file": "tests/remote.test.ts",
+        "physical": 227,
+        "code": 204
+      },
+      {
+        "file": "tests/winlinks-repair-conflict.test.ts",
+        "physical": 224,
+        "code": 180
+      },
+      {
+        "file": "tests/sync-orchestration.test.ts",
+        "physical": 220,
+        "code": 184
+      },
+      {
+        "file": "tests/versioncenter-winget.test.ts",
+        "physical": 214,
+        "code": 185
+      },
+      {
+        "file": "tests/versioncenter-native-arp.test.ts",
+        "physical": 213,
+        "code": 183
+      },
+      {
+        "file": "tests/versioncenter-visibility.test.ts",
+        "physical": 213,
+        "code": 188
+      },
+      {
+        "file": "tests/importer.test.ts",
+        "physical": 211,
+        "code": 183
+      },
+      {
+        "file": "tests/versioncenter-npm.test.ts",
+        "physical": 206,
+        "code": 181
+      },
+      {
+        "file": "tests/kimi-profiles.test.ts",
+        "physical": 204,
+        "code": 181
+      },
+      {
+        "file": "tests/apihub-catalog.test.ts",
+        "physical": 202,
+        "code": 172
+      },
+      {
+        "file": "tests/vscode.test.ts",
+        "physical": 202,
+        "code": 173
+      },
+      {
+        "file": "tests/kimi-toml.test.ts",
+        "physical": 193,
+        "code": 168
+      },
+      {
+        "file": "tests/winlinks-agentsdir.test.ts",
+        "physical": 192,
+        "code": 162
+      },
+      {
+        "file": "tests/agentSignatures.test.ts",
+        "physical": 177,
+        "code": 157
+      },
+      {
+        "file": "tests/skillopen.test.ts",
+        "physical": 171,
+        "code": 145
+      },
+      {
+        "file": "tests/wslbridge.test.ts",
+        "physical": 164,
+        "code": 144
+      },
+      {
+        "file": "tests/linkstate.test.ts",
+        "physical": 154,
+        "code": 135
+      },
+      {
+        "file": "tests/frontmatter.test.ts",
+        "physical": 151,
+        "code": 123
+      },
+      {
+        "file": "tests/wslscan.test.ts",
+        "physical": 149,
+        "code": 131
+      },
+      {
+        "file": "tests/versioncenter-compare.test.ts",
+        "physical": 140,
+        "code": 117
+      },
+      {
+        "file": "tests/git-async.test.ts",
+        "physical": 111,
+        "code": 97
+      },
+      {
+        "file": "tests/registry.test.ts",
+        "physical": 104,
+        "code": 90
+      },
+      {
+        "file": "tests/agentsopen.test.ts",
+        "physical": 97,
+        "code": 82
+      },
+      {
+        "file": "tests/doctor-crlf.test.ts",
+        "physical": 96,
+        "code": 73
+      },
+      {
+        "file": "tests/settings.test.ts",
+        "physical": 73,
+        "code": 63
+      },
+      {
+        "file": "tests/winlinks-skillmd.test.ts",
+        "physical": 71,
+        "code": 52
+      },
+      {
+        "file": "tests/git-quotepath.test.ts",
+        "physical": 63,
+        "code": 53
+      },
+      {
+        "file": "tests/helpers/fakeSpawn.ts",
+        "physical": 62,
+        "code": 52
+      },
+      {
+        "file": "tests/text-decode.test.ts",
+        "physical": 57,
+        "code": 44
+      },
+      {
+        "file": "tests/singleinstance.test.ts",
+        "physical": 42,
+        "code": 36
+      },
+      {
+        "file": "tests/helpers/kimi-sample.ts",
+        "physical": 40,
+        "code": 32
+      }
+    ],
+    "testCasesAuthoritative": 595
+  },
+  "ratio": {
+    "productionToTestPhysical": 1.6
+  },
+  "vitest": {
+    "ok": true,
+    "testFiles": 41,
+    "testCases": 595,
+    "passed": 595,
+    "failed": 0,
+    "success": true,
+    "durationMs": 6728
+  }
+}

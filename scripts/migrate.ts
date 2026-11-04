@@ -277,7 +277,7 @@ function cmdDryrun(): void {
   }
 }
 
-function cmdImport(): void {
+async function cmdImport(): Promise<void> {
   section('import：实跑导入（先校验后删除）')
   for (const src of IMPORT_SOURCES) {
     console.log(`\n--- ${src} ---`)
@@ -286,7 +286,8 @@ function cmdImport(): void {
       continue
     }
     try {
-      const r = executeImport(src, VAULT)
+      // executeImport 已改为异步（内部 git 走 spawn，不阻塞事件循环）
+      const r = await executeImport(src, VAULT)
       for (const s of r.steps) info(s)
       info(`完成: ${r.skillName}（${r.fileCount} 文件）`)
     } catch (e) {
@@ -450,7 +451,7 @@ async function main(): Promise<void> {
     case 'dryrun':
       return cmdDryrun()
     case 'import':
-      return cmdImport()
+      return await cmdImport()
     case 'link':
       return cmdLink()
     case 'verify':
@@ -458,7 +459,7 @@ async function main(): Promise<void> {
     case 'all':
       cmdInit()
       await cmdWsl()
-      cmdImport()
+      await cmdImport()
       await cmdLink()
       return cmdVerify()
     default:

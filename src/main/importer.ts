@@ -3,7 +3,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ImportPlan } from '../shared/types'
-import { git } from './git'
+import { gitAsync } from './git'
 import {
   createJunction,
   lstatSafe,
@@ -178,7 +178,16 @@ export function planImport(sourceDir: string, vaultPath: string): ImportPlan {
 
 export type ImportOptions = { dryRun?: boolean; commit?: boolean }
 
-export function executeImport(sourceDir: string, vaultPath: string, opts?: ImportOptions): ImportPlan & { steps: string[] } {
+/**
+ * 执行导入（异步）。
+ * WHY 异步：最后的 vault 内 git add/commit 用 spawnSync 会独占主进程事件循环 —— 大仓库一次提交
+ *   足以让整个 Electron 主进程卡死（窗口无响应）。这里改用 gitAsync（spawn），行为与同步版一致。
+ */
+export async function executeImport(
+  sourceDir: string,
+  vaultPath: string,
+  opts?: ImportOptions
+): Promise<ImportPlan & { steps: string[] }> {
   const dryRun = opts?.dryRun === true
   const doCommit = opts?.commit !== false
   const plan = planImport(sourceDir, vaultPath)
@@ -217,10 +226,10 @@ export function executeImport(sourceDir: string, vaultPath: string, opts?: Impor
 
   // 5) vault 内 git add + commit（仅本地）。数据此刻已安全入 vault 并建链，commit 失败只降级为警告，不当作导入失败
   if (doCommit) {
-    git(vaultPath, ['add', '-A'])
-    const st = git(vaultPath, ['status', '--porcelain'])
+    await gitAsync(vaultPath, ['add', '-A'])
+    const st = await gitAsync(vaultPath, ['status', '--porcelain'])
     if (st.stdout.trim()) {
-      const c = git(vaultPath, ['commit', '-m', `skill-manager: import ${plan.skillName}`])
+      const c = await gitAsync(vaultPath, ['commit', '-m', `skill-manager: import ${plan.skillName}`])
       if (c.ok) steps.push('git commit 完成（仅本地，未 push）')
       else steps.push(`警告：git commit 失败（${(c.stderr || c.stdout).trim().slice(0, 200)}），变更已留在暂存区，可在同步页重试提交`)
     } else {
