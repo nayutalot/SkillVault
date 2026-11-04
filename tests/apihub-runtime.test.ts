@@ -631,6 +631,39 @@ describe('apihubSwitch 回滚回归', () => {
     expect(loadHubStore(ud).activeByAdapter['codex'] ?? null).toBeNull()
   })
 
+  it('回滚失败必须可观测：错误信息里带未能恢复的目标路径，而不是静默吞掉（回滚只报「只能如实报告」）', async () => {
+    const p = upsertHubProfile(
+      ud,
+      mkInput('codex', 'DS', { providerId: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', wireApi: 'chat' }),
+      K4,
+      fakeSealer()
+    )
+    // 第二个文件（config.toml）rename 抛 EPERM → 触发回滚；
+    // 回滚时把 auth.json 恢复回去也失败 → 恢复未完成，必须在错误里报出来
+    const fsMod = Object.create(fs) as typeof fs
+    fsMod.renameSync = ((tmp: fs.PathLike, to: fs.PathLike) => {
+      if (String(to).endsWith('config.toml')) throw new Error('EPERM: 文件被占用')
+      fs.renameSync(tmp, to)
+    }) as typeof fs.renameSync
+    // 从备份恢复回 auth.json 的那一次 copy 失败（有备份时走这条）
+    fsMod.copyFileSync = ((from: fs.PathLike, to: fs.PathLike) => {
+      if (String(to).endsWith('auth.json') && String(from).includes('.bak_')) {
+        throw new Error('EBUSY: 目标文件被占用')
+      }
+      fs.copyFileSync(from, to)
+    }) as typeof fs.copyFileSync
+    // 无备份时走删除路径，这条同样要能触发
+    fsMod.unlinkSync = ((p: fs.PathLike) => {
+      if (String(p).endsWith('auth.json')) throw new Error('EBUSY: 目标文件被占用')
+      fs.unlinkSync(p)
+    }) as typeof fs.unlinkSync
+    // 错误信息必须包含「恢复未完全成功」与未能恢复的路径，且保留原始错误
+    const run = () => apihubSwitch('codex', p.id, deps({ fsMod }))
+    await expect(run()).rejects.toThrow(/恢复未完全成功/)
+    await expect(run()).rejects.toThrow(/未能恢复/)
+    await expect(run()).rejects.toThrow(/EPERM/)
+  })
+
   it('zcode：setting.json 里的历史形态参与派生（knownForms 传空串的旧 bug：非标准形态被静默改写）', async () => {
     const settingCustom = JSON.stringify({
       modelProviderFamilySelectedKeys: { bigmodel: 'myfamily:myprov', zai: 'coding-plan:builtin:zai-x' },

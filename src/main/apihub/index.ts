@@ -570,14 +570,16 @@ export async function apihubSwitch(
   // 3) 原子写全部目标文件；中途失败时把已 rename 成功的前序文件从备份恢复（否则留下互相不匹配的配置对）
   const tmpFiles: string[] = []
   const written: string[] = []
+  // 回滚失败的明细必须返回给调用方，不能只写在注释里 —— 否则「恢复是否成功」无从判断
+  const rollbackFailures: string[] = []
   const rollbackWritten = (): void => {
     for (const p of written) {
       const backup = backupOf.get(p)
       try {
         if (backup) fsMod.copyFileSync(backup, p)
         else if (fsMod.existsSync(p)) fsMod.unlinkSync(p)
-      } catch {
-        /* 回滚失败只能如实报告（备份仍在） */
+      } catch (err) {
+        rollbackFailures.push(p + '（' + ((err as Error)?.message ?? String(err)) + '）')
       }
     }
   }
@@ -599,6 +601,14 @@ export async function apihubSwitch(
       }
     }
     rollbackWritten()
+    if (rollbackFailures.length) {
+      throw new Error(
+        '切换失败且恢复未完全成功：原始错误「' +
+          ((e as Error)?.message ?? String(e)) +
+          '」；以下目标未能恢复（备份仍在，请人工核对）：' +
+          rollbackFailures.join('；')
+      )
+    }
     throw e
   }
 
@@ -607,6 +617,14 @@ export async function apihubSwitch(
     verifyAdapter(adapterId, deps, fields, apiKeyPlain)
   } catch (e) {
     rollbackWritten()
+    if (rollbackFailures.length) {
+      throw new Error(
+        '回读校验失败且恢复未完全成功：原始错误「' +
+          ((e as Error)?.message ?? String(e)) +
+          '」；以下目标未能恢复（备份仍在，请人工核对）：' +
+          rollbackFailures.join('；')
+      )
+    }
     throw e
   }
 
