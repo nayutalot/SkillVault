@@ -1,0 +1,641 @@
+{
+  "schema": "skillvault.perf-raw.v2",
+  "script": "scripts/measure-perf.mjs",
+  "command": "node scripts/measure-perf.mjs --skills 26 --agents 20 --rounds 5",
+  "generated_at": "2026-11-04T06:49:24.813Z",
+  "environment": {
+    "os": "Windows_NT 10.0.26200",
+    "platform": "win32/x64",
+    "windows_version": "Microsoft Windows [版本 10.0.26200.6584]",
+    "node": "v24.21.0",
+    "repo_commit": "c458bcb",
+    "cpu_model": "AMD Ryzen 9 7900X 12-Core Processor            ",
+    "cpu_count": 24,
+    "total_mem_bytes": 50630156288,
+    "tmpdir": "C:\\Users\\sakuya\\AppData\\Local\\Temp",
+    "volumes": {
+      "fixture_vault": {
+        "dev": "3666481221",
+        "path": "C:\\Users\\sakuya\\AppData\\Local\\Temp\\skillvault-perf-23644-mw1rae9m\\vault"
+      },
+      "fixture_agents": {
+        "dev": "3666481221",
+        "path": "C:\\Users\\sakuya\\AppData\\Local\\Temp\\skillvault-perf-23644-mw1rae9m\\agents"
+      },
+      "os_tmpdir": {
+        "dev": "3666481221",
+        "path": "C:\\Users\\sakuya\\AppData\\Local\\Temp"
+      },
+      "same_volume_vault_agents": true,
+      "same_volume_as_tmpdir": true
+    },
+    "fs": {
+      "cpSync": "node:fs.cpSync(recursive)",
+      "symlinkSync": "node:fs.symlinkSync(type='junction')"
+    },
+    "command": "node scripts/measure-perf.mjs --skills 26 --agents 20 --rounds 5"
+  },
+  "scenario": {
+    "skills": 26,
+    "agents": 20,
+    "files_per_skill": 3,
+    "payload_bytes_per_file": 8192,
+    "payload_kb_per_file": 8,
+    "source_bytes_total": 638976,
+    "fanout_items_per_method": 520,
+    "total_source_bytes_fanned_out": 12779520
+  },
+  "timing_boundary": {
+    "inside": [
+      "junction 轮：自调用 fs.symlinkSync(target, link, \"junction\") 之前 1 行开始，到最后一次 symlinkSync 返回后 1 行结束",
+      "copy 轮：自调用 fs.cpSync(src, dst, { recursive:true, force:true }) 之前 1 行开始，到最后一次 cpSync 返回后 1 行结束",
+      "link 更新轮：自写入 vault 源文件之前，到逐个 agent 路径读回校验完成之后",
+      "copy 更新轮：自写入 vault 源文件之前，到重新复制到 M 个 agent 并逐个读回校验完成之后",
+      "null 基线轮：仅计时器开合本身"
+    ],
+    "outside": [
+      "fixture 构造（写 N×F 个源文件、建 M 个 agent 目录）",
+      "fixture 销毁（teardown）与每轮之间的重建",
+      "计时后的结果校验（lstat 判定重解析点 / 文件计数 / 语义校验）",
+      "Node 进程启动、模块加载、JSON 序列化与落盘",
+      "fixture 指纹（SHA-256）计算"
+    ],
+    "timer": "process.hrtime.bigint()（单调纳秒时钟，不受系统时间调整影响）"
+  },
+  "method": {
+    "driver": "单一 Node 进程，junction 与 copy 两种方法均由 Node 内置 fs 实现",
+    "ordering": "ABBA（2 轮一个区块，区块内 A→B / B→A）",
+    "realized_order": "junction,copy | copy,junction | junction,copy | copy,junction | junction,copy",
+    "repeats": 5,
+    "statistic": "中位数为主指标，同时报告 mean/min/max/stdev",
+    "noise_floor": "每轮插入一次空操作（null）测量",
+    "fixture_reset": "每个测量前删除并重建整个 fixture 根目录，保证每轮起点字节级一致",
+    "single_skill_update_symmetry": "link 与 copy 两种更新测量在计时器内做完全对称的事（写入源 + 逐个 agent 读回校验），唯一差别是 copy 模式需要在计时器内额外执行 M 次 cpSync。"
+  },
+  "integrity": {
+    "identical_fixture_across_rounds": true,
+    "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+    "distinct_fixture_digests": 1,
+    "agent_side_before_content_consistent": true,
+    "agent_side_before_content_sha256": [
+      "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    ],
+    "fanout_semantics_ok": true,
+    "all_single_updates_visible_to_all_agents": true
+  },
+  "summary": {
+    "distribution": {
+      "junction_ms": {
+        "n": 5,
+        "median": 242.093,
+        "mean": 249.338,
+        "min": 228.251,
+        "max": 281.97,
+        "stdev": 22.008,
+        "stdev_pop": 19.684
+      },
+      "copy_ms": {
+        "n": 5,
+        "median": 2746.309,
+        "mean": 2695.59,
+        "min": 2467.628,
+        "max": 2956.606,
+        "stdev": 209.8,
+        "stdev_pop": 187.651
+      },
+      "speedup_median_over_median": 11.34,
+      "speedup_paired_median": 10.56,
+      "paired_speedups": [
+        10.31,
+        10.56,
+        12.03,
+        9.97,
+        11.34
+      ],
+      "junctions_created": 2600,
+      "junctions_failed": 0,
+      "junction_failures": [],
+      "copies_created": 2600
+    },
+    "single_update": {
+      "link_update_ms": {
+        "n": 5,
+        "median": 3.013,
+        "mean": 4.074,
+        "min": 2.939,
+        "max": 6.309,
+        "stdev": 1.553,
+        "stdev_pop": 1.389
+      },
+      "copy_update_ms": {
+        "n": 5,
+        "median": 79.58,
+        "mean": 82.954,
+        "min": 74.815,
+        "max": 99.174,
+        "stdev": 9.469,
+        "stdev_pop": 8.469
+      },
+      "link_extra_copies_needed": 0,
+      "copy_extra_copies_needed": 20,
+      "link_all_agents_visible": true,
+      "copy_all_agents_visible": true,
+      "speedup_median_over_median": 26.41
+    },
+    "noise_floor": {
+      "null_ms": {
+        "n": 5,
+        "median": 0.001,
+        "mean": 0.001,
+        "min": 0,
+        "max": 0.001,
+        "stdev": 0,
+        "stdev_pop": 0
+      },
+      "null_ns": {
+        "n": 5,
+        "median": 600,
+        "mean": 540,
+        "min": 300,
+        "max": 900,
+        "stdev": 250.998,
+        "stdev_pop": 224.499
+      },
+      "note": "null 基线是计时器开销 + GC 噪声地板；比较两个方法时应确认差异远大于该地板"
+    }
+  },
+  "rounds": [
+    {
+      "round": 0,
+      "order": "junction,copy",
+      "null_ms": 0.0003,
+      "measurements": {
+        "junction": {
+          "ms": 242.093,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "link_update": {
+          "ms": 2.996,
+          "extra_copies_needed": 0,
+          "all_agents_visible": true
+        },
+        "copy": {
+          "ms": 2495.769,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "copy_update": {
+          "ms": 82.449,
+          "extra_copies_needed": 20,
+          "all_agents_visible": true
+        }
+      }
+    },
+    {
+      "round": 1,
+      "order": "copy,junction",
+      "null_ms": 0.0003,
+      "measurements": {
+        "copy": {
+          "ms": 2467.628,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "copy_update": {
+          "ms": 74.815,
+          "extra_copies_needed": 20,
+          "all_agents_visible": true
+        },
+        "junction": {
+          "ms": 233.658,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "link_update": {
+          "ms": 5.112,
+          "extra_copies_needed": 0,
+          "all_agents_visible": true
+        }
+      }
+    },
+    {
+      "round": 2,
+      "order": "junction,copy",
+      "null_ms": 0.0006,
+      "measurements": {
+        "junction": {
+          "ms": 228.251,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "link_update": {
+          "ms": 2.939,
+          "extra_copies_needed": 0,
+          "all_agents_visible": true
+        },
+        "copy": {
+          "ms": 2746.309,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "copy_update": {
+          "ms": 79.58,
+          "extra_copies_needed": 20,
+          "all_agents_visible": true
+        }
+      }
+    },
+    {
+      "round": 3,
+      "order": "copy,junction",
+      "null_ms": 0.0006,
+      "measurements": {
+        "copy": {
+          "ms": 2811.638,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "copy_update": {
+          "ms": 99.174,
+          "extra_copies_needed": 20,
+          "all_agents_visible": true
+        },
+        "junction": {
+          "ms": 281.97,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "link_update": {
+          "ms": 6.309,
+          "extra_copies_needed": 0,
+          "all_agents_visible": true
+        }
+      }
+    },
+    {
+      "round": 4,
+      "order": "junction,copy",
+      "null_ms": 0.0009,
+      "measurements": {
+        "junction": {
+          "ms": 260.719,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "link_update": {
+          "ms": 3.013,
+          "extra_copies_needed": 0,
+          "all_agents_visible": true
+        },
+        "copy": {
+          "ms": 2956.606,
+          "items_created": 520,
+          "items_failed": 0,
+          "semantics_ok": true
+        },
+        "copy_update": {
+          "ms": 78.753,
+          "extra_copies_needed": 20,
+          "all_agents_visible": true
+        }
+      }
+    }
+  ],
+  "records": [
+    {
+      "kind": "null",
+      "round": 0,
+      "ms": 0.0003,
+      "ns": "300"
+    },
+    {
+      "kind": "fanout",
+      "round": 0,
+      "method": "junction",
+      "ms": 242.093,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "junction",
+        "ok": true,
+        "is_symbolic_link": true,
+        "is_directory": false,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "junction 轮：目标是重解析点（lstat 报 symbolic link），通过它读到的仍是源目录内容"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 0,
+      "method": "link",
+      "ms": 2.996,
+      "extra_copies_needed": 0,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "fanout",
+      "round": 0,
+      "method": "copy",
+      "ms": 2495.769,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "copy",
+        "ok": true,
+        "is_symbolic_link": false,
+        "is_directory": true,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "copy 轮：目标是真实目录（lstat 不报 symbolic link），是独立实体副本"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 0,
+      "method": "copy",
+      "ms": 82.449,
+      "extra_copies_needed": 20,
+      "copies": 20,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "null",
+      "round": 1,
+      "ms": 0.0003,
+      "ns": "300"
+    },
+    {
+      "kind": "fanout",
+      "round": 1,
+      "method": "copy",
+      "ms": 2467.628,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "copy",
+        "ok": true,
+        "is_symbolic_link": false,
+        "is_directory": true,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "copy 轮：目标是真实目录（lstat 不报 symbolic link），是独立实体副本"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 1,
+      "method": "copy",
+      "ms": 74.815,
+      "extra_copies_needed": 20,
+      "copies": 20,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "fanout",
+      "round": 1,
+      "method": "junction",
+      "ms": 233.658,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "junction",
+        "ok": true,
+        "is_symbolic_link": true,
+        "is_directory": false,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "junction 轮：目标是重解析点（lstat 报 symbolic link），通过它读到的仍是源目录内容"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 1,
+      "method": "link",
+      "ms": 5.112,
+      "extra_copies_needed": 0,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "null",
+      "round": 2,
+      "ms": 0.0006,
+      "ns": "600"
+    },
+    {
+      "kind": "fanout",
+      "round": 2,
+      "method": "junction",
+      "ms": 228.251,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "junction",
+        "ok": true,
+        "is_symbolic_link": true,
+        "is_directory": false,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "junction 轮：目标是重解析点（lstat 报 symbolic link），通过它读到的仍是源目录内容"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 2,
+      "method": "link",
+      "ms": 2.939,
+      "extra_copies_needed": 0,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "fanout",
+      "round": 2,
+      "method": "copy",
+      "ms": 2746.309,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "copy",
+        "ok": true,
+        "is_symbolic_link": false,
+        "is_directory": true,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "copy 轮：目标是真实目录（lstat 不报 symbolic link），是独立实体副本"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 2,
+      "method": "copy",
+      "ms": 79.58,
+      "extra_copies_needed": 20,
+      "copies": 20,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "null",
+      "round": 3,
+      "ms": 0.0006,
+      "ns": "600"
+    },
+    {
+      "kind": "fanout",
+      "round": 3,
+      "method": "copy",
+      "ms": 2811.638,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "copy",
+        "ok": true,
+        "is_symbolic_link": false,
+        "is_directory": true,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "copy 轮：目标是真实目录（lstat 不报 symbolic link），是独立实体副本"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 3,
+      "method": "copy",
+      "ms": 99.174,
+      "extra_copies_needed": 20,
+      "copies": 20,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "fanout",
+      "round": 3,
+      "method": "junction",
+      "ms": 281.97,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "junction",
+        "ok": true,
+        "is_symbolic_link": true,
+        "is_directory": false,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "junction 轮：目标是重解析点（lstat 报 symbolic link），通过它读到的仍是源目录内容"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 3,
+      "method": "link",
+      "ms": 6.309,
+      "extra_copies_needed": 0,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "null",
+      "round": 4,
+      "ms": 0.0009,
+      "ns": "900"
+    },
+    {
+      "kind": "fanout",
+      "round": 4,
+      "method": "junction",
+      "ms": 260.719,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "junction",
+        "ok": true,
+        "is_symbolic_link": true,
+        "is_directory": false,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "junction 轮：目标是重解析点（lstat 报 symbolic link），通过它读到的仍是源目录内容"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 4,
+      "method": "link",
+      "ms": 3.013,
+      "extra_copies_needed": 0,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    },
+    {
+      "kind": "fanout",
+      "round": 4,
+      "method": "copy",
+      "ms": 2956.606,
+      "items_created": 520,
+      "items_failed": 0,
+      "fixture_digest": "80975949e086c7397ea8dbdf5acda919e4838b64a6f533a0ec21e4981809162c",
+      "semantics": {
+        "method": "copy",
+        "ok": true,
+        "is_symbolic_link": false,
+        "is_directory": true,
+        "file_count": 3,
+        "total_bytes": 24576,
+        "note": "copy 轮：目标是真实目录（lstat 不报 symbolic link），是独立实体副本"
+      }
+    },
+    {
+      "kind": "single_update",
+      "round": 4,
+      "method": "copy",
+      "ms": 78.753,
+      "extra_copies_needed": 20,
+      "copies": 20,
+      "reads": 20,
+      "mismatches": 0,
+      "all_agents_visible": true,
+      "agent_side_content_before_sha256": "1792ead955a0a127d124d22606112e3ca99f3b458cc89771dcccfe2044ac07d5"
+    }
+  ]
+}
